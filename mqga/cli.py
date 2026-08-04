@@ -140,7 +140,7 @@ def main(argv=None):
 
 		# Différence MNS - MNT (équivalent de l'ancien -diff)
 		chem_in = os.path.join(RepTra, "diff_MNS_MNT.tif")
-		logger.info("Calcul de la différence MNS - MNT...")
+		logger.info("Calcul de la différence MNS - MNT (grille MNS)...")
 		compute_mns_mnt_diff(chem_mns, chem_mnt, chem_in, no_data=no_data)
 		logger.info("Différence écrite: %s", chem_in)
 
