@@ -3,7 +3,8 @@
 **Module open source d'autoqualification de GEMAUT**
 
 Ce dépôt contient un script Python (`make_quality_great_again.py`) qui
-calcule un **masque de qualité** à partir d'une **différence DSM/DTM**
+calcule un **masque de qualité** à partir d'un **MNS** et d'un **MNT**
+(la différence MNS − MNT est calculée automatiquement).
 
 ------------------------------------------------------------------------
 
@@ -40,27 +41,32 @@ python3 make_quality_great_again.py --help
 
 Vous devriez obtenir ceci :
 
-    usage: make_quality_great_again.py [-h] [-diff DIFF] [-out OUT] [-no NO] [-per PER] [-demiwinl DEMIWINL] [-demiwinc DEMIWINC] [-tile TILE] [-pad PAD] [-RepTra REPTRA] [-cpu CPU]
-                                       [-winavg WINAVG] [-interp {griddata,idw,idw_old,window,linearnd,fast,hybrid}] [-clean]
-
-    MAKE QUALITY GREAT AGAIN ALL ZONE - Version Spatialisée & Parallélisée
+    usage: make_quality_great_again.py [-h] --mns MNS --mnt MNT -out OUT [-no NO] [-per PER]
+                                       [-demiwinl DEMIWINL] [-demiwinc DEMIWINC] [-tile TILE]
+                                       [-pad PAD] -RepTra REPTRA -cpu CPU [-winavg WINAVG]
+                                       [-interp {griddata,idw,idw_old,window,linearnd,fast,hybrid}]
+                                       [-clean]
 
     options:
-      -h, --help            show this help message and exit
-      -diff DIFF            Différence DSM/DTM en entrée
+      --mns / -mns MNS      Chemin vers le MNS (DSM)
+      --mnt / -mnt MNT      Chemin vers le MNT (DTM)
       -out OUT              Masque de Qualité en sortie
-      -no NO                Valeur de No Data
-      -per PER              Valeur de percentile
-      -demiwinl DEMIWINL    Demie-taille en ligne de la fenêtre d'analyse
-      -demiwinc DEMIWINC    Demie-taille en colonne de la fenêtre d'analyse
-      -tile TILE            Tile / Taille de la tuile
-      -pad PAD              Pad / Recouvrement entre tuiles
       -RepTra REPTRA        Répertoire de Travail
-      -cpu CPU              Nombre de CPU diponibles
-      -winavg WINAVG        Taille de la fenêtre glissante pour la moyenne (par défaut 50x50)
-      -interp {griddata,idw,idw_old,window,linearnd,fast,hybrid}
-                            Méthode d'interpolation pour les pixels nodata (défaut: idw - optimisé et parallélisé, hybrid = méthode hybride xingng)
-      -clean                Supprimer le contenu du répertoire temporaire s'il existe déjà
+      -cpu CPU              Nombre de CPU disponibles
+      ...
+
+Exemple :
+
+``` bash
+python3 make_quality_great_again.py \
+  --mns /chemin/mns.tif \
+  --mnt /chemin/mnt.tif \
+  -out /chemin/masque_qualite.tif \
+  -RepTra /chemin/tmp_mqga \
+  -cpu 8 \
+  -interp hybrid \
+  -clean
+```
 
 ------------------------------------------------------------------------
 
@@ -109,13 +115,14 @@ Cette méthode remplit mieux les grands trous tout en restant
 
 # Organisation du traitement
 
-1.  Lecture des métadonnées de l'image (`GetInfo`)
-2.  Calcul du nombre de tuiles (`CalculNombreDallesXY`)
-3.  Découpage en tuiles (`MakeDecoupage`)
-4.  Calcul du masque par tuile en parallèle (`DoParallel`)
-5.  Assemblage final des tuiles (`Make_Assemblage_FINAL`)
-6.  Interpolation des NoData (`interpolate_nodata_*`)
-7.  Lissage final (`apply_moving_average`)
+1.  Calcul de la différence MNS − MNT (`compute_mns_mnt_diff`)
+2.  Lecture des métadonnées de l'image (`GetInfo`)
+3.  Calcul du nombre de tuiles (`CalculNombreDallesXY`)
+4.  Découpage en tuiles (`MakeDecoupage`)
+5.  Calcul du masque par tuile en parallèle (`DoParallel`)
+6.  Assemblage final des tuiles (`Make_Assemblage_FINAL`)
+7.  Interpolation des NoData (`interpolate_nodata_*`)
+8.  Lissage final (`apply_moving_average`)
 
 ------------------------------------------------------------------------
 

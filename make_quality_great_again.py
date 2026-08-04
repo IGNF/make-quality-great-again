@@ -6,7 +6,9 @@ Compatibilité CLI : délègue au package mqga.
 Usage inchangé :
     python3 make_quality_great_again.py --help
 """
+import sys
+
 from mqga.cli import main
 
 if __name__ == "__main__":
-	main()
+	sys.exit(main())
