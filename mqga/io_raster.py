@@ -8,15 +8,6 @@ import numpy as np
 import rasterio
 
 
-def GetValue(listInfo,chaine):
-	
-	for l in listInfo:
-		lig = l.strip()
-		if lig.find(chaine) != -1:
-			return lig.split()[-1]
-			
-############################################################################################################################		 
-############################################################################################################################		 
 def GetInfo(cheminTIF):
 	"""
 	Récupère les métadonnées d'une image GeoTIFF.
@@ -117,20 +108,8 @@ def save_ABSOLUTE_image_with_same_geometry(image, output_filename, src_filename)
     # Utilisez les métadonnées copiées pour écrire l'image dans un fichier .tif
     with rasterio.open(output_filename, 'w', **metadata) as dst:
         dst.write(abs_image, 1)  # Écrit l'image dans la première bande en assumant qu'il s'agit d'une image à une seule bande
-        
-#############################################################################################################################	
-def save_image_with_same_geometry(image, output_filename, src_filename):
-	# Ouvrez l'image source pour lire sa géométrie
-	with rasterio.open(src_filename) as src:
-		metadata = src.meta.copy()  # Copiez les métadonnées de l'image source
-		
-	# Mettez à jour les métadonnées avec les nouvelles dimensions si nécessaire
-	metadata['height'], metadata['width'] = image.shape
-	metadata['dtype'] = image.dtype  # Assurez-vous que le type de données correspond à l'image de sortie
-	
-	# Utilisez les métadonnées copiées pour écrire l'image dans un fichier .tif
-	with rasterio.open(output_filename, 'w', **metadata) as dst:
-		dst.write(image, 1)  # Écrit l'image dans la première bande en assumant qu'il s'agit d'une image à une seule bande
+
+
 def crop_tile(args):
 	"""
 	Fonction pour découper une dalle d'une image (utilisée en parallèle).
