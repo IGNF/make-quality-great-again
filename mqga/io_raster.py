@@ -205,3 +205,50 @@ def init_rep_tra(RepTra, clean=False):
 		# Créer le répertoire
 		os.makedirs(RepTra, exist_ok=True)
 		print(f"Répertoire temporaire créé: {RepTra}")
+
+
+def compute_mns_mnt_diff(chem_mns, chem_mnt, chem_out, no_data=-9999):
+	"""
+	Calcule la différence MNS - MNT et l'écrit en GeoTIFF.
+
+	Les deux rasters doivent avoir la même taille, le même transform et le même CRS.
+	Un pixel est nodata en sortie si MNS ou MNT est nodata / NaN.
+	"""
+	with rasterio.open(chem_mns, 'r') as src_mns, rasterio.open(chem_mnt, 'r') as src_mnt:
+		if src_mns.width != src_mnt.width or src_mns.height != src_mnt.height:
+			raise ValueError(
+				f"Tailles incompatibles: MNS=({src_mns.width}x{src_mns.height}), "
+				f"MNT=({src_mnt.width}x{src_mnt.height})"
+			)
+		if src_mns.transform != src_mnt.transform:
+			raise ValueError("Transforms incompatibles entre MNS et MNT")
+		if src_mns.crs != src_mnt.crs:
+			raise ValueError(
+				f"CRS incompatibles: MNS={src_mns.crs}, MNT={src_mnt.crs}"
+			)
+
+		nodata_mns = src_mns.nodata if src_mns.nodata is not None else no_data
+		nodata_mnt = src_mnt.nodata if src_mnt.nodata is not None else no_data
+
+		metadata = src_mns.meta.copy()
+		metadata.update({
+			'dtype': 'float32',
+			'count': 1,
+			'nodata': no_data,
+			'compress': 'lzw',
+		})
+
+		with rasterio.open(chem_out, 'w', **metadata) as dst:
+			for _, window in src_mns.block_windows(1):
+				mns = src_mns.read(1, window=window).astype(np.float32)
+				mnt = src_mnt.read(1, window=window).astype(np.float32)
+
+				mask_invalid = (
+					(mns == nodata_mns) | np.isnan(mns) |
+					(mnt == nodata_mnt) | np.isnan(mnt)
+				)
+				diff = mns - mnt
+				diff[mask_invalid] = no_data
+				dst.write(diff.astype(np.float32), 1, window=window)
+
+	return chem_out
