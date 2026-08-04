@@ -12,24 +12,6 @@ from mqga.quality_mask import create_negative_image, diff_2_mask_quality
 
 
 ### calcule le nombre de dalles en X et en Y en fonction des paramètres de chantier
-def CalculNombreDallesXY_NEW(NbColonnes,NbLignes,dalleX,dalleY):
-				
-	### Calcul du nombre de dalles en X		
-	if (NbColonnes%dalleX == 0):
-		NbreDalleX=NbColonnes/dalleX
-	else: 
-		NbreDalleX=int(NbColonnes/dalleX)+1
-		
-	### Calcul du nombre de dalles en Y		
-	if (NbLignes%dalleY == 0):
-		NbreDalleY=NbLignes/dalleY
-	else: 
-		NbreDalleY=int(NbLignes/dalleY)+1
-	
-	return (NbreDalleX,NbreDalleY)  
-	
-#################################################################################################### 
-### calcule le nombre de dalles en X et en Y en fonction des paramètres de chantier
 def CalculNombreDallesXY(NbColonnes,NbLignes,Taille_dalle,Recouv_entre_dalles):
 		
 	### pour calculer le nombre de dalles en X et en Y		
@@ -105,29 +87,6 @@ def DoParallel(RepTra, NbreDalleX, NbreDalleY, dl, no_data, percentile, iNbreCPU
 			args=(chem_in_dalle_NEG, chem_out_dalle, dl, no_data, percentile)
 			tasks.append(args)
 
-	# Initialize the pool
-	with Pool(processes=iNbreCPU, initializer=init_worker) as pool:
-		# Use tqdm to show the progress bar
-		results = list(tqdm(pool.imap_unordered(diff_2_mask_quality, tasks), total=len(tasks),desc="Calcul des masques de qualité par dalle en //"))
-				
-
-#################################################################################################### 
-def DoParallel_OLD(RepTra, NbreDalleX, NbreDalleY, dl, no_data, percentile, iNbreCPU):
-		
-	tasks = []
-	
-	## lancement sur chaque dalle
-	for x in range(NbreDalleX):
-		for y in range(NbreDalleY):
-			#créer le nom du répertoire
-			RepDalleXY=os.path.join(RepTra,"Dalle_%s_%s"%(x,y))
-			#fichier out mns
-			chem_in_dalle=os.path.join(RepDalleXY,"IN_%s_%s.tif"%(x,y))
-			chem_out_dalle=os.path.join(RepDalleXY,"MASK_%s_%s.tif"%(x,y))
-			#
-			args=(chem_in_dalle, chem_out_dalle, dl, no_data, percentile)
-			tasks.append(args)
-		
 	# Initialize the pool
 	with Pool(processes=iNbreCPU, initializer=init_worker) as pool:
 		# Use tqdm to show the progress bar
