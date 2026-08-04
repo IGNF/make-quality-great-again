@@ -277,60 +277,6 @@ def assemble_lines_and_overlaps(lines, overlaps, output_path):
         s.close()
 
 
-#################################################################################################### 
-def assemble_horizontal_OLD(image_paths, output_path):
-	"""Assemble des images de gauche à droite. Les pixels suivants écrasent les précédents en cas de recouvrement.
-	Les pixels NoData ne remplacent jamais les pixels valides grâce à skip_empty=True."""
-	from rasterio.merge import merge
-	
-	# Trier les images par leur position X (left) pour garantir l'ordre de gauche à droite
-	image_bounds = []
-	for path in image_paths:
-		with rasterio.open(path) as src:
-			image_bounds.append((src.bounds.left, path))
-	
-	# Trier par position X (left)
-	image_bounds.sort(key=lambda x: x[0])
-	sorted_paths = [path for _, path in image_bounds]
-	
-	# Récupérer la valeur nodata de la première image (on suppose qu'elles sont identiques)
-	with rasterio.open(sorted_paths[0]) as first:
-		nodata_val = first.nodata if first.nodata is not None else -9999
-	
-	# Ouvrir toutes les images dans l'ordre trié
-	srcs = [rasterio.open(path) for path in sorted_paths]
-	
-	try:
-		# Utiliser merge pour assembler (method='last' pour que les pixels suivants écrasent les précédents)
-		# skip_empty=True empêche les pixels NoData d'écraser les pixels valides
-		# L'ordre dans la liste détermine la priorité : les dernières images écrasent les premières
-		mosaic, out_trans = merge(
-			srcs,
-			method='last',
-			nodata=nodata_val,
-			skip_empty=True  # Ne pas remplacer les pixels valides par du NoData
-		)
-		
-		# Métadonnées de sortie
-		out_meta = srcs[0].meta.copy()
-		out_meta.update({
-			'driver': 'GTiff',
-			'height': mosaic.shape[1],
-			'width': mosaic.shape[2],
-			'transform': out_trans,
-			'compress': 'lzw',
-			'nodata': nodata_val
-		})
-		
-		# Écrire l'image assemblée
-		with rasterio.open(output_path, 'w', **out_meta) as dst:
-			dst.write(mosaic)
-	finally:
-		# Fermer toutes les sources
-		for src in srcs:
-			src.close()
-
-#################################################################################################### 	
 def Make_Assemblage_FINAL(chem_out, NbreDalleX, NbreDalleY, RepTra):
 	"""
 	Assemble les dalles en utilisant rasterio (version open source).
