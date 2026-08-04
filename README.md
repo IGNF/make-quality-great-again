@@ -115,7 +115,8 @@ Cette méthode remplit mieux les grands trous tout en restant
 
 # Organisation du traitement
 
-1.  Calcul de la différence MNS − MNT (`compute_mns_mnt_diff`)
+1.  Calcul de la différence MNS − MNT sur la **grille du MNS**
+    (`compute_mns_mnt_diff` ; le MNT est rééchantillonné si nécessaire)
 2.  Lecture des métadonnées de l'image (`GetInfo`)
 3.  Calcul du nombre de tuiles (`CalculNombreDallesXY`)
 4.  Découpage en tuiles (`MakeDecoupage`)
