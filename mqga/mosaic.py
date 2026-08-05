@@ -5,6 +5,7 @@ import os
 
 import numpy as np
 import rasterio
+from loguru import logger
 from rasterio.merge import merge
 from rasterio.windows import from_bounds
 from tqdm import tqdm
@@ -297,7 +298,7 @@ def Make_Assemblage_FINAL(chem_out, NbreDalleX, NbreDalleY, RepTra):
 			overlap_bounds = calculate_overlap_bounds(chem_MASK_QUALITY_dalle_xy, chem_MASK_QUALITY_dalle_xy_droite)
 			
 			if overlap_bounds is None:
-				print(f"Attention: Pas de recouvrement entre dalle ({x},{y}) et ({x+1},{y})")
+				logger.warning("Pas de recouvrement entre dalle ({},{}) et ({},{})", x, y, x + 1, y)
 				continue
 			
 			# Lire la shape des données pour créer les poids de la bonne taille
@@ -348,15 +349,14 @@ def Make_Assemblage_FINAL(chem_out, NbreDalleX, NbreDalleY, RepTra):
 		try:
 			assemble_tiles_and_overlaps(image_paths, overlaps, chem_final_tmp)
 		except Exception as e:
-			print("ERREUR dans assemble_horizontal:", type(e), e)
-			import traceback
-			traceback.print_exc()
-			print("Vérifiez que la fonction assemble_horizontal est bien importée/définie, qu'il n'y a pas d'erreur de nom de variable ou d'accès aux fichiers ci-dessus.")
-			print("Voici la liste des images à assembler, pour vérification des accès fichiers :")
+			logger.error("ERREUR dans assemble_tiles_and_overlaps: {} {}", type(e), e)
 			for ip in image_paths:
-				print("  - ", ip, "-->", os.path.exists(ip))
-			print("chem_final_tmp =", chem_final_tmp, "--> dossier existe ?", os.path.exists(os.path.dirname(chem_final_tmp)))
-			raise  # relancer l'exception pour arrêt si debug
+				logger.error("  - {} --> {}", ip, os.path.exists(ip))
+			logger.error(
+				"chem_final_tmp={} (dossier existe ? {})",
+				chem_final_tmp, os.path.exists(os.path.dirname(chem_final_tmp)),
+			)
+			raise
 
 	####################################################################################################################################################
 	## on assemble les rangées entre elles		 #####################################################################################################
@@ -372,7 +372,7 @@ def Make_Assemblage_FINAL(chem_out, NbreDalleX, NbreDalleY, RepTra):
 		overlap_bounds = calculate_overlap_bounds(chem_dalle_y, chem_dalle_y_dessous)
 		
 		if overlap_bounds is None:
-			print(f"Attention: Pas de recouvrement entre ligne {y} et {y+1}")
+			logger.warning("Pas de recouvrement entre ligne {} et {}", y, y + 1)
 			continue
 		
 		# Lire la shape des données pour créer les poids de la bonne taille

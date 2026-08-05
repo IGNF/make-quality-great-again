@@ -11,6 +11,7 @@ from scipy.interpolate import LinearNDInterpolator, griddata
 from scipy.spatial import cKDTree
 from scipy.spatial.distance import cdist
 from tqdm import tqdm
+from loguru import logger
 
 from mqga.tiling import init_worker
 
@@ -160,7 +161,7 @@ def interpolate_nodata_with_linearnd(chem_in, chem_out, no_data=-9999, block_siz
 			
 			print()  # Nouvelle ligne après la progression
 	
-	print(f"Interpolation terminée (LinearNDInterpolator): {total_nodata_interpolated} pixels nodata interpolés.")
+	logger.info("Interpolation terminée (LinearNDInterpolator): {} pixels nodata interpolés.", total_nodata_interpolated)
 
 #############################################################################################################################	
 def interpolate_nodata_griddata(chem_in, chem_out, no_data=-9999, block_size=1000):
@@ -200,7 +201,7 @@ def interpolate_nodata_griddata(chem_in, chem_out, no_data=-9999, block_size=100
 			n_blocks_x = (width + block_size - 1) // block_size
 			total_blocks = n_blocks_y * n_blocks_x
 			
-			print(f"Traitement par blocs (griddata): {n_blocks_x}x{n_blocks_y} blocs de {block_size}x{block_size} pixels")
+			logger.info("Traitement par blocs (griddata): {}x{} blocs de {}x{} pixels", n_blocks_x, n_blocks_y, block_size, block_size)
 			
 			block_count = 0
 			total_nodata_interpolated = 0
@@ -305,7 +306,7 @@ def interpolate_nodata_griddata(chem_in, chem_out, no_data=-9999, block_size=100
 			
 			print()
 	
-	print(f"Interpolation terminée (griddata): {total_nodata_interpolated} pixels nodata interpolés.")
+	logger.info("Interpolation terminée (griddata): {} pixels nodata interpolés.", total_nodata_interpolated)
 
 #############################################################################################################################	
 def interpolate_nodata_idw(chem_in, chem_out, no_data=-9999, search_radius=50, power=2, block_size=1000):
@@ -347,7 +348,7 @@ def interpolate_nodata_idw(chem_in, chem_out, no_data=-9999, search_radius=50, p
 			n_blocks_x = (width + block_size - 1) // block_size
 			total_blocks = n_blocks_y * n_blocks_x
 			
-			print(f"Traitement par blocs (IDW): {n_blocks_x}x{n_blocks_y} blocs de {block_size}x{block_size} pixels")
+			logger.info("Traitement par blocs (IDW): {}x{} blocs de {}x{} pixels", n_blocks_x, n_blocks_y, block_size, block_size)
 			
 			block_count = 0
 			total_nodata_interpolated = 0
@@ -454,7 +455,7 @@ def interpolate_nodata_idw(chem_in, chem_out, no_data=-9999, search_radius=50, p
 			
 			print()
 	
-	print(f"Interpolation terminée (IDW): {total_nodata_interpolated} pixels nodata interpolés.")
+	logger.info("Interpolation terminée (IDW): {} pixels nodata interpolés.", total_nodata_interpolated)
 
 #############################################################################################################################	
 def _process_block_idw(args):
@@ -602,7 +603,7 @@ def interpolate_nodata_idw_vectorized(chem_in, chem_out, no_data=-9999, search_r
 			n_blocks_x = (width + block_size - 1) // block_size
 			total_blocks = n_blocks_y * n_blocks_x
 			
-			print(f"Traitement par blocs (IDW vectorisé): {n_blocks_x}x{n_blocks_y} blocs de {block_size}x{block_size} pixels ({n_jobs} processus)")
+			logger.info("Traitement par blocs (IDW vectorisé): {}x{} blocs de {}x{} pixels ({} processus)", n_blocks_x, n_blocks_y, block_size, block_size, n_jobs)
 			
 			# Traiter les blocs en parallèle
 			# Passer tous les paramètres nécessaires à la fonction globale
@@ -619,7 +620,7 @@ def interpolate_nodata_idw_vectorized(chem_in, chem_out, no_data=-9999, search_r
 				dst.write(result_block.astype(metadata['dtype']), 1, window=write_window)
 				total_nodata_interpolated += np.sum((result_block != no_data) & ~np.isnan(result_block))
 	
-	print(f"Interpolation terminée (IDW vectorisé): {total_nodata_interpolated} pixels nodata interpolés.")
+	logger.info("Interpolation terminée (IDW vectorisé): {} pixels nodata interpolés.", total_nodata_interpolated)
 
 #############################################################################################################################	
 def interpolate_nodata_fast(chem_in, chem_out, no_data=-9999, max_iterations=5):
@@ -660,7 +661,7 @@ def interpolate_nodata_fast(chem_in, chem_out, no_data=-9999, max_iterations=5):
 	if not np.any(mask_nodata):
 		with rasterio.open(chem_out, 'w', **metadata) as dst:
 			dst.write(data, 1)
-		print("Aucun pixel nodata à interpoler.")
+		logger.info("Aucun pixel nodata à interpoler.")
 		return
 	
 	# Copier les données
@@ -691,7 +692,7 @@ def interpolate_nodata_fast(chem_in, chem_out, no_data=-9999, max_iterations=5):
 		dst.write(result, 1)
 	
 	nodata_filled = np.sum(mask_nodata & (result != no_data))
-	print(f"Interpolation terminée (rapide): {nodata_filled} pixels nodata interpolés en {iteration+1} itérations.")
+	logger.info("Interpolation terminée (rapide): {} pixels nodata interpolés en {} itérations.", nodata_filled, iteration+1)
 
 #############################################################################################################################	
 def interpolate_nodata_window(chem_in, chem_out, no_data=-9999, window_size=20):
@@ -729,7 +730,7 @@ def interpolate_nodata_window(chem_in, chem_out, no_data=-9999, window_size=20):
 	if not np.any(mask_nodata):
 		with rasterio.open(chem_out, 'w', **metadata) as dst:
 			dst.write(data, 1)
-		print("Aucun pixel nodata à interpoler.")
+		logger.info("Aucun pixel nodata à interpoler.")
 		return
 	
 	# Fonction pour remplir les nodata dans une fenêtre
@@ -743,7 +744,7 @@ def interpolate_nodata_window(chem_in, chem_out, no_data=-9999, window_size=20):
 			return np.mean(window[valid])
 		return no_data
 	
-	print(f"Interpolation par fenêtre glissante ({window_size}x{window_size})...")
+	logger.info("Interpolation par fenêtre glissante ({}x{})...", window_size, window_size)
 	result = generic_filter(data, fill_nodata, size=window_size, mode='constant', cval=no_data)
 	
 	# Garder les nodata qui n'ont pas pu être interpolés
@@ -755,7 +756,7 @@ def interpolate_nodata_window(chem_in, chem_out, no_data=-9999, window_size=20):
 		dst.write(result, 1)
 	
 	nodata_filled = np.sum((mask_nodata) & (result != no_data))
-	print(f"Interpolation terminée (fenêtre): {nodata_filled} pixels nodata interpolés.")
+	logger.info("Interpolation terminée (fenêtre): {} pixels nodata interpolés.", nodata_filled)
 
 #############################################################################################################################	
 def interpolate_nodata_hybrid(chem_in, chem_out, no_data=-9999, 
@@ -814,7 +815,7 @@ def interpolate_nodata_hybrid(chem_in, chem_out, no_data=-9999,
 	if not np.any(mask_nodata):
 		with rasterio.open(chem_out, 'w', **metadata) as dst:
 			dst.write(data, 1)
-		print("Aucun pixel nodata à interpoler.")
+		logger.info("Aucun pixel nodata à interpoler.")
 		return
 	
 	# Identifier les trous connexes (composantes connexes de nodata)
@@ -944,7 +945,7 @@ def interpolate_nodata_hybrid(chem_in, chem_out, no_data=-9999,
 		dst.write(result, 1)
 	
 	nodata_filled = np.sum(mask_nodata & (result != no_data))
-	print(f"Interpolation terminée (hybride): {nodata_filled} pixels nodata interpolés.")
+	logger.info("Interpolation terminée (hybride): {} pixels nodata interpolés.", nodata_filled)
 
 #############################################################################################################################	
 def apply_moving_average(chem_in, chem_out, window_size=50, no_data=-9999):
