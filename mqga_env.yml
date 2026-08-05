@@ -9,5 +9,5 @@ dependencies:
   - rasterio
   - gdal
   - tqdm
-  - imageio
+  - loguru
   - pip
