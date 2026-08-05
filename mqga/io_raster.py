@@ -3,6 +3,7 @@
 """Lecture / écriture rasters et utilitaires I/O."""
 import os
 import shutil
+from dataclasses import dataclass
 
 import numpy as np
 import rasterio
@@ -10,73 +11,90 @@ from rasterio.enums import Resampling
 from rasterio.warp import reproject
 
 
+@dataclass(frozen=True)
+class RasterInfo:
+	"""Métadonnées utiles d'un GeoTIFF."""
+	pas_x: float
+	pas_y: float
+	projection: int
+	x_0: float  # gauche
+	x_1: float  # droite
+	y_0: float  # bas
+	y_1: float  # haut
+	phasage: str
+	nbre_col: float
+	nbre_lig: float
+	g_model: int
+	g_raster: int
+
+
 def GetInfo(cheminTIF):
 	"""
 	Récupère les métadonnées d'une image GeoTIFF.
 	Version open source utilisant rasterio.
-	
+
 	Returns:
-		[PasX, PasY, Projection, X_0, X_1, Y_0, Y_1, phasage, NbreCol, NbreLig, GModel, GRaster]
+		RasterInfo
 	"""
 	# Ouvrir l'image avec rasterio
 	with rasterio.open(cheminTIF, 'r') as src:
 		# Pas en X et Y (résolution)
 		transform = src.transform
-		PasX = abs(transform[0])  # pixel width
-		PasY = abs(transform[4])  # pixel height (généralement négatif, on prend la valeur absolue)
-		
+		pas_x = abs(transform[0])  # pixel width
+		pas_y = abs(transform[4])  # pixel height (généralement négatif, on prend la valeur absolue)
+
 		# Bounds (positions)
 		bounds = src.bounds
-		X_0 = bounds.left   # GAUCHE
-		X_1 = bounds.right   # DROITE
-		Y_0 = bounds.bottom  # BAS
-		Y_1 = bounds.top     # HAUT
-		
+		x_0 = bounds.left   # GAUCHE
+		x_1 = bounds.right  # DROITE
+		y_0 = bounds.bottom  # BAS
+		y_1 = bounds.top     # HAUT
+
 		# Nombre de colonnes et lignes
-		NbreCol = float(src.width)
-		NbreLig = float(src.height)
-		
+		nbre_col = float(src.width)
+		nbre_lig = float(src.height)
+
 		# Code EPSG / Projection
 		if src.crs is not None:
-			Projection = int(src.crs.to_epsg()) if src.crs.to_epsg() is not None else -1
+			projection = int(src.crs.to_epsg()) if src.crs.to_epsg() is not None else -1
 		else:
-			Projection = -1
-		
+			projection = -1
+
 		# GTModelTypeGeoKey et GTRasterTypeGeoKey
 		# Ces clés sont dans les tags GeoTIFF, généralement dans les tags de la bande
-		GModel = -1
-		GRaster = -1
+		g_model = -1
+		g_raster = -1
 		# Essayer d'abord les tags du dataset
 		if hasattr(src, 'tags') and src.tags():
 			tags = src.tags()
 			if 'GTModelTypeGeoKey' in tags:
 				try:
-					GModel = int(tags['GTModelTypeGeoKey'])
+					g_model = int(tags['GTModelTypeGeoKey'])
 				except (ValueError, TypeError):
 					pass
 			if 'GTRasterTypeGeoKey' in tags:
 				try:
-					GRaster = int(tags['GTRasterTypeGeoKey'])
+					g_raster = int(tags['GTRasterTypeGeoKey'])
 				except (ValueError, TypeError):
 					pass
 		# Si pas trouvé, essayer les tags de la première bande
-		if (GModel == -1 or GRaster == -1) and hasattr(src, 'tags'):
+		if (g_model == -1 or g_raster == -1) and hasattr(src, 'tags'):
 			try:
 				band_tags = src.tags(1)
 				if band_tags:
-					if 'GTModelTypeGeoKey' in band_tags and GModel == -1:
+					if 'GTModelTypeGeoKey' in band_tags and g_model == -1:
 						try:
-							GModel = int(band_tags['GTModelTypeGeoKey'])
+							g_model = int(band_tags['GTModelTypeGeoKey'])
 						except (ValueError, TypeError):
 							pass
-					if 'GTRasterTypeGeoKey' in band_tags and GRaster == -1:
+					if 'GTRasterTypeGeoKey' in band_tags and g_raster == -1:
 						try:
-							GRaster = int(band_tags['GTRasterTypeGeoKey'])
+							g_raster = int(band_tags['GTRasterTypeGeoKey'])
 						except (ValueError, TypeError):
 							pass
-			except:
+			except Exception:
 				pass
-		
+
 		# Phasage : déterminer si c'est "HG" (haut-gauche) ou "CP" (centre pixel)
 		phasage = "HG"  # Par défaut
 		if hasattr(src, 'tags') and src.tags():
@@ -84,9 +102,22 @@ def GetInfo(cheminTIF):
 			tags = src.tags()
 			if 'AREA_OR_POINT' in tags and tags['AREA_OR_POINT'] == 'Point':
 				phasage = "CP"
-	
-	return [PasX, PasY, Projection, X_0, X_1, Y_0, Y_1, phasage, NbreCol, NbreLig, GModel, GRaster] 
-	
+
+	return RasterInfo(
+		pas_x=pas_x,
+		pas_y=pas_y,
+		projection=projection,
+		x_0=x_0,
+		x_1=x_1,
+		y_0=y_0,
+		y_1=y_1,
+		phasage=phasage,
+		nbre_col=nbre_col,
+		nbre_lig=nbre_lig,
+		g_model=g_model,
+		g_raster=g_raster,
+	)
+
 #############################################################################################################################	
 def read_as_2D_float(filename,no_data):
 	

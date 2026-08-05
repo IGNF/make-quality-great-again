@@ -3,6 +3,7 @@
 """Découpage en tuiles et traitement parallèle."""
 import os
 import signal
+from dataclasses import dataclass
 from multiprocessing import Pool
 
 from tqdm import tqdm
@@ -11,27 +12,41 @@ from mqga.io_raster import crop_tile
 from mqga.quality_mask import create_negative_image, diff_2_mask_quality
 
 
+@dataclass(frozen=True)
+class TileGrid:
+	"""Nombre de dalles en X et en Y."""
+	nbre_dalle_x: int
+	nbre_dalle_y: int
+
+
 ### calcule le nombre de dalles en X et en Y en fonction des paramètres de chantier
-def CalculNombreDallesXY(NbColonnes,NbLignes,Taille_dalle,Recouv_entre_dalles):
-		
-	### pour calculer le nombre de dalles en X et en Y		
-	NumX=NbColonnes-Taille_dalle
-	NumY=NbLignes-Taille_dalle
-	Denom=Taille_dalle-Recouv_entre_dalles
-		
-	### Calcul du nombre de dalles en X		
-	if (NumX%Denom == 0):
-		NbreDalleX=int(NumX/Denom+1)
-	else: 
-		NbreDalleX=int((NumX/Denom)+1)+1
-		
-	### Calcul du nombre de dalles en Y		
-	if (NumY%Denom == 0):
-		NbreDalleY=int(NumY/Denom+1)
-	else: 
-		NbreDalleY=int((NumY/Denom)+1)+1
-		
-	return (NbreDalleX,NbreDalleY) 
+def CalculNombreDallesXY(NbColonnes, NbLignes, Taille_dalle, Recouv_entre_dalles):
+	"""
+	Calcule le nombre de dalles en X et en Y.
+
+	Returns:
+		TileGrid
+	"""
+	### pour calculer le nombre de dalles en X et en Y
+	NumX = NbColonnes - Taille_dalle
+	NumY = NbLignes - Taille_dalle
+	Denom = Taille_dalle - Recouv_entre_dalles
+
+	### Calcul du nombre de dalles en X
+	if (NumX % Denom == 0):
+		nbre_dalle_x = int(NumX / Denom + 1)
+	else:
+		nbre_dalle_x = int((NumX / Denom) + 1) + 1
+
+	### Calcul du nombre de dalles en Y
+	if (NumY % Denom == 0):
+		nbre_dalle_y = int(NumY / Denom + 1)
+	else:
+		nbre_dalle_y = int((NumY / Denom) + 1) + 1
+
+	return TileGrid(nbre_dalle_x=nbre_dalle_x, nbre_dalle_y=nbre_dalle_y)
+
+
 def MakeDecoupage(chem_in, RepTra, NbreDalleX, NbreDalleY, iTailleparcelle, iTailleRecouvrement, iNbreCPU):
 	"""
 	Découpe l'image en dalles en utilisant rasterio (version open source).
