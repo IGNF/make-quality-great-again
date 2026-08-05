@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import rasterio
+from loguru import logger
 from rasterio.enums import Resampling
 from rasterio.warp import reproject
 
@@ -166,7 +167,7 @@ def crop_tile(args):
 		
 		# Si la fenêtre est complètement en dehors de l'image, on ne fait rien
 		if ligmin >= max_row or colmin >= max_col or ligmax <= 0 or colmax <= 0:
-			print(f"Attention: Fenêtre complètement hors limites pour {Chem_decoup}")
+			logger.warning("Fenêtre complètement hors limites pour {}", Chem_decoup)
 			return
 		
 		# Ajuster les offsets pour qu'ils soient >= 0
@@ -181,7 +182,10 @@ def crop_tile(args):
 		
 		# Vérifier que la fenêtre est valide après ajustement
 		if height <= 0 or width <= 0:
-			print(f"Attention: Fenêtre invalide pour {Chem_decoup} (height={height}, width={width})")
+			logger.warning(
+				"Fenêtre invalide pour {} (height={}, width={})",
+				Chem_decoup, height, width,
+			)
 			return
 		
 		# Créer la fenêtre de découpage
@@ -223,7 +227,7 @@ def init_rep_tra(RepTra, clean=False):
 	# Si le répertoire existe déjà
 	if os.path.exists(RepTra):
 		if clean:
-			print(f"Nettoyage du répertoire temporaire: {RepTra}")
+			logger.info("Nettoyage du répertoire temporaire: {}", RepTra)
 			# Supprimer tout le contenu
 			for item in os.listdir(RepTra):
 				item_path = os.path.join(RepTra, item)
@@ -231,13 +235,13 @@ def init_rep_tra(RepTra, clean=False):
 					shutil.rmtree(item_path)
 				else:
 					os.remove(item_path)
-			print(f"  ✓ Répertoire nettoyé")
+			logger.info("Répertoire temporaire nettoyé")
 		else:
-			print(f"Répertoire temporaire existant: {RepTra} (contenu conservé)")
+			logger.info("Répertoire temporaire existant: {} (contenu conservé)", RepTra)
 	else:
 		# Créer le répertoire
 		os.makedirs(RepTra, exist_ok=True)
-		print(f"Répertoire temporaire créé: {RepTra}")
+		logger.info("Répertoire temporaire créé: {}", RepTra)
 
 
 def _same_grid(src_a, src_b):
@@ -269,10 +273,10 @@ def compute_mns_mnt_diff(chem_mns, chem_mnt, chem_out, no_data=-9999):
 		aligned = _same_grid(src_mns, src_mnt)
 
 		if not aligned:
-			print(
-				"INFO: MNT rééchantillonné sur la grille du MNS "
-				f"(MNS={src_mns.width}x{src_mns.height}, "
-				f"MNT={src_mnt.width}x{src_mnt.height})"
+			logger.info(
+				"MNT rééchantillonné sur la grille du MNS "
+				"(MNS={}x{}, MNT={}x{})",
+				src_mns.width, src_mns.height, src_mnt.width, src_mnt.height,
 			)
 
 		metadata = src_mns.meta.copy()
