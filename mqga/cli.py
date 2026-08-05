@@ -13,12 +13,7 @@ from mqga.io_raster import GetInfo, init_rep_tra, compute_mns_mnt_diff
 from mqga.tiling import CalculNombreDallesXY, MakeDecoupage, DoParallel
 from mqga.mosaic import Make_Assemblage_FINAL
 from mqga.interpolate import (
-	interpolate_nodata_griddata,
-	interpolate_nodata_idw,
 	interpolate_nodata_idw_vectorized,
-	interpolate_nodata_window,
-	interpolate_nodata_with_linearnd,
-	interpolate_nodata_fast,
 	interpolate_nodata_hybrid,
 	apply_moving_average,
 )
@@ -69,8 +64,8 @@ Un fichier de log est écrit à côté de --out (même nom, extension .log).
 	)
 	parser.add_argument(
 		"--interp", "-interp", type=str, default="hybrid",
-		choices=["griddata", "idw", "idw_old", "window", "linearnd", "fast", "hybrid"],
-		help="Méthode d'interpolation des NoData (défaut: hybrid)",
+		choices=["hybrid", "idw"],
+		help="Méthode d'interpolation des NoData: hybrid (défaut) ou idw",
 	)
 	parser.add_argument(
 		"--clean", "-clean", action="store_true",
@@ -136,26 +131,16 @@ def _validate_args(args):
 def _run_interpolation(interp_method, chem_out_tmp, chem_out_clean_bouchage, no_data, iNbreCPU):
 	logger.info("Post-traitement: interpolation des pixels nodata (méthode: {})...", interp_method)
 
-	if interp_method == "griddata":
-		interpolate_nodata_griddata(chem_out_tmp, chem_out_clean_bouchage, no_data)
-	elif interp_method == "idw":
-		interpolate_nodata_idw_vectorized(chem_out_tmp, chem_out_clean_bouchage, no_data, n_jobs=iNbreCPU)
-	elif interp_method == "idw_old":
-		interpolate_nodata_idw(chem_out_tmp, chem_out_clean_bouchage, no_data)
-	elif interp_method == "window":
-		interpolate_nodata_window(chem_out_tmp, chem_out_clean_bouchage, no_data)
-	elif interp_method == "linearnd":
-		interpolate_nodata_with_linearnd(chem_out_tmp, chem_out_clean_bouchage, no_data)
-	elif interp_method == "fast":
-		interpolate_nodata_fast(chem_out_tmp, chem_out_clean_bouchage, no_data)
-	elif interp_method == "hybrid":
+	if interp_method == "idw":
+		interpolate_nodata_idw_vectorized(
+			chem_out_tmp, chem_out_clean_bouchage, no_data, n_jobs=iNbreCPU
+		)
+	else:
+		# hybrid (défaut)
 		interpolate_nodata_hybrid(
 			chem_out_tmp, chem_out_clean_bouchage, no_data,
 			connectivity=4, seuil_percent=50, poids=1, rayon=50, n=1,
 		)
-	else:
-		logger.warning("Méthode '{}' non reconnue, utilisation de 'fast'.", interp_method)
-		interpolate_nodata_fast(chem_out_tmp, chem_out_clean_bouchage, no_data)
 
 
 def main(argv=None):
