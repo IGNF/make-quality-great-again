@@ -1,6 +1,6 @@
 # 🚀 MAKE QUALITY GREAT AGAIN
 
-**Module open source d'autoqualification de GEMAUT — carte de précision à partir d'un MNS et d'un MNT**
+**Module open source d'autoqualification de MNT (GEMAUT) — délivre une carte de précision associée au MNT (GEMAUT) **
 
 Développé au Service de l'Imagerie Spatiale de l'IGN.
 
@@ -8,10 +8,14 @@ Développé au Service de l'Imagerie Spatiale de l'IGN.
 
 MAKE QUALITY GREAT AGAIN (MQGA) calcule un **masque de qualité / carte de précision** à partir :
 
+- d'un **MNT** (DTM), typiquement produit par GEMAUT 
 - d'un **MNS** (DSM)
-- d'un **MNT** (DTM), typiquement produit par GEMAUT
 
 Ce dépôt est le volet d'auto-qualification de [GEMAUT-pipeline](https://github.com/IGNF/GEMAUT-pipeline).
+
+L'algorithme est décrit en détail dans cette article publié dans la *Revue Française de Photogrammétrie et de Télédétection (RFPT)* :
+
+> 👉 [Lire l'article sur le site de la RFPT](https://rfpt.sfpt.fr/index.php/RFPT/article/view/739)
 
 ---
 
@@ -98,7 +102,7 @@ python3 make_quality_great_again.py \
 - `--pad` : Recouvrement entre tuiles (défaut: `50`)
 - `--winavg` : Fenêtre de moyenne glissante finale (défaut: `50`)
 - `--interp` : Méthode d'interpolation des NoData  
-  (`griddata`, `idw`, `idw_old`, `window`, `linearnd`, `fast`, `hybrid` — défaut: `hybrid`)
+  (`hybrid` par défaut, ou `idw`)
 - `--clean` : Vider le répertoire temporaire s'il existe déjà
 - `--verbose` : Activer le niveau DEBUG sur la console
 
@@ -109,7 +113,7 @@ python3 make_quality_great_again.py \
 ### Entrées
 
 - **MNS** et **MNT** au format GeoTIFF
-- Ils peuvent avoir des **résolutions différentes** ; la sortie est calée sur la **grille du MNS**
+- Ils peuvent avoir des **résolutions différentes** ; la carte de précision en sortie est calée sur la **grille du MNS**
 - Si un pixel MNS ou MNT est NoData → pixel NoData dans la différence
 
 ### Sorties
@@ -144,11 +148,11 @@ xingng -FB:2:C:50,1:1:50:1 -EM=-9999
 1. Identification des **trous connexes** (zones NoData)
 2. Détection des **pixels de bord** (connexité 4)
 3. Pour chaque trou :
-   - constante `V_calc` : après exclusion des 50 % plus petites valeurs de bord, minimum des restantes
+   - calcul d'une constante `V_calc` : après exclusion des 50 % plus petites valeurs de bord, `V_calc` correspond au minimum des valeurs restantes
    - interpolation **IDW** locale sur les pixels de bord (rayon 50, poids 1)
    - combinaison selon la distance au bord : proche → IDW, centre → `V_calc`
 
-Cette méthode remplit mieux les grands trous tout en restant raisonnablement rapide.
+Cette méthode s'inspire de la méthode `xingng`: elle remplit bien les grands trous tout en restant raisonnablement dans son temps d'exécution.
 
 ---
 
