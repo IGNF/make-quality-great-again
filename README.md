@@ -117,8 +117,8 @@ Cette méthode remplit mieux les grands trous tout en restant
 
 1.  Calcul de la différence MNS − MNT sur la **grille du MNS**
     (`compute_mns_mnt_diff` ; le MNT est rééchantillonné si nécessaire)
-2.  Lecture des métadonnées de l'image (`GetInfo`)
-3.  Calcul du nombre de tuiles (`CalculNombreDallesXY`)
+2.  Lecture des métadonnées de l'image (`GetInfo` → `RasterInfo`)
+3.  Calcul du nombre de tuiles (`CalculNombreDallesXY` → `TileGrid`)
 4.  Découpage en tuiles (`MakeDecoupage`)
 5.  Calcul du masque par tuile en parallèle (`DoParallel`)
 6.  Assemblage final des tuiles (`Make_Assemblage_FINAL`)

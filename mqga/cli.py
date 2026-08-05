@@ -145,18 +145,21 @@ def main(argv=None):
 		logger.info("Différence écrite: %s", chem_in)
 
 		infos = GetInfo(chem_in)
-		NbreCol = infos[8]
-		NbreLig = infos[9]
+		tiles = CalculNombreDallesXY(
+			infos.nbre_col, infos.nbre_lig, iTailleparcelle, iTailleRecouvrement
+		)
 
-		NombreDallesXY = CalculNombreDallesXY(NbreCol, NbreLig, iTailleparcelle, iTailleRecouvrement)
-		NbreDalleX = NombreDallesXY[0]
-		NbreDalleY = NombreDallesXY[1]
-
-		MakeDecoupage(chem_in, RepTra, NbreDalleX, NbreDalleY, iTailleparcelle, iTailleRecouvrement, iNbreCPU)
-		DoParallel(RepTra, NbreDalleX, NbreDalleY, dl, no_data, percentile, iNbreCPU)
+		MakeDecoupage(
+			chem_in, RepTra, tiles.nbre_dalle_x, tiles.nbre_dalle_y,
+			iTailleparcelle, iTailleRecouvrement, iNbreCPU,
+		)
+		DoParallel(
+			RepTra, tiles.nbre_dalle_x, tiles.nbre_dalle_y,
+			dl, no_data, percentile, iNbreCPU,
+		)
 
 		chem_out_tmp = chem_out.replace('.tif', '_tmp.tif')
-		Make_Assemblage_FINAL(chem_out_tmp, NbreDalleX, NbreDalleY, RepTra)
+		Make_Assemblage_FINAL(chem_out_tmp, tiles.nbre_dalle_x, tiles.nbre_dalle_y, RepTra)
 
 		chem_out_clean_bouchage = chem_out.replace('.tif', '_clean_bouchage.tif')
 		_run_interpolation(args.interp, chem_out_tmp, chem_out_clean_bouchage, no_data, iNbreCPU)
