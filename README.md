@@ -80,6 +80,24 @@ python3 make_quality_great_again.py \
     --verbose
 ```
 
+#### **Avec détection de décrochage MNT**
+
+```bash
+python3 make_quality_great_again.py \
+    --mns /chemin/vers/MNS.tif \
+    --mnt /chemin/vers/MNT.tif \
+    --out /chemin/vers/masque_qualite.tif \
+    --RepTra /chemin/vers/tmp_mqga \
+    --cpu 8 \
+    --interp hybrid \
+    --decrochage \
+    --clean
+```
+
+Les zones où le MNT semble décrocher (MNS ≫ MNT, après seuil Z / morpho / volume / STD)
+sont mises en **NoData** dans la carte de précision, et exportées en shapefile
+`masque_qualite_zones_decrochage.shp` à côté de `--out`.
+
 ---
 
 ## 🔧 Paramètres
@@ -105,6 +123,11 @@ python3 make_quality_great_again.py \
   (`hybrid` par défaut, ou `idw`)
 - `--clean` : Vider le répertoire temporaire s'il existe déjà
 - `--verbose` : Activer le niveau DEBUG sur la console
+- `--decrochage` : activer la détection des zones de décrochage MNT
+- `--seuilZ` : seuil Z positif MNS−MNT (m), défaut `10`
+- `--seuilV` : seuil de volume `COUNT*MEAN`, défaut `100000`
+- `--seuilSTD` : seuil d'écart-type (m), défaut `3`
+- `--morph-radius` : rayon (px) de l'opening morphologique, défaut `5`
 
 ---
 
@@ -118,20 +141,23 @@ python3 make_quality_great_again.py \
 
 ### Sorties
 
-- `--out` : masque de qualité (GeoTIFF, résolution MNS)
+- `--out` : masque de qualité / carte de précision LE90 estimée locale (GeoTIFF, résolution MNS)
+- Avec `--decrochage` : shapefile `*_zones_decrochage.shp` (zones non garanties) ;
+  ces pixels restent **NoData** dans `--out` (non interpolés)
 - Fichier log : même chemin que `--out`, extension `.log`
-- Fichiers temporaires dans `--RepTra` (dont `diff_MNS_MNT.tif`)
+- Fichiers temporaires dans `--RepTra` (dont `diff_MNS_MNT.tif`, `mask_decrochage.tif`)
 
 ### Organisation du traitement
 
 1. Calcul de la différence MNS − MNT (`compute_mns_mnt_diff`)
-2. Lecture des métadonnées (`GetInfo` → `RasterInfo`)
-3. Calcul du nombre de tuiles (`CalculNombreDallesXY` → `TileGrid`)
-4. Découpage en tuiles (`MakeDecoupage`)
-5. Calcul de la carte de précision par tuile en parallèle (`DoParallel`)
-6. Assemblage final (`Make_Assemblage_FINAL`)
-7. Interpolation des NoData (`interpolate_nodata_*`)
-8. Lissage final (`apply_moving_average`)
+2. (Optionnel) Détection décrochage → masque + shapefile ; masquage de la diff
+3. Lecture des métadonnées (`GetInfo` → `RasterInfo`)
+4. Calcul du nombre de tuiles (`CalculNombreDallesXY` → `TileGrid`)
+5. Découpage en tuiles (`MakeDecoupage`)
+6. Calcul de la carte de précision par tuile en parallèle (`DoParallel`)
+7. Assemblage final (`Make_Assemblage_FINAL`)
+8. Interpolation des NoData (`interpolate_nodata_*`, hors zones de décrochage)
+9. Lissage final (`apply_moving_average`)
 
 ---
 
@@ -164,6 +190,7 @@ MAKE_QUALITY_GREAT_AGAIN/
 ├── mqga/
 │   ├── cli.py                    # Arguments, logging, orchestration
 │   ├── io_raster.py              # I/O raster, diff MNS−MNT
+│   ├── decrochage.py             # Détection zones MNS ≫ MNT
 │   ├── quality_mask.py           # Percentile local / masque
 │   ├── tiling.py                 # Découpage et parallèle
 │   ├── mosaic.py                 # Assemblage des tuiles
