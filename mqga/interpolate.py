@@ -14,6 +14,17 @@ from tqdm import tqdm
 from mqga.tiling import init_worker
 
 
+def _reapply_protect_mask(chem_raster, protect_mask_path, no_data=-9999):
+	"""Remet nodata sur les pixels du masque protégé (ex. zones de décrochage)."""
+	if not protect_mask_path:
+		return
+	from mqga.decrochage import apply_mask_as_nodata
+	apply_mask_as_nodata(
+		chem_raster, protect_mask_path, chem_out=chem_raster, no_data=no_data
+	)
+	logger.info("Masque protégé réappliqué (nodata): {}", protect_mask_path)
+
+
 def _process_block_idw(args):
 	"""
 	Fonction helper pour le traitement parallèle des blocs IDW.
@@ -116,7 +127,10 @@ def _process_block_idw(args):
 	return (process_col_start, process_row_start, process_width, process_height, result_block)
 
 #############################################################################################################################	
-def interpolate_nodata_idw_vectorized(chem_in, chem_out, no_data=-9999, search_radius=50, power=2, block_size=2000, n_jobs=None):
+def interpolate_nodata_idw_vectorized(
+	chem_in, chem_out, no_data=-9999, search_radius=50, power=2, block_size=2000, n_jobs=None,
+	protect_mask_path=None,
+):
 	"""
 	Version optimisée et vectorisée de l'interpolation IDW.
 	Beaucoup plus rapide que la version originale grâce à la vectorisation numpy.
@@ -129,6 +143,7 @@ def interpolate_nodata_idw_vectorized(chem_in, chem_out, no_data=-9999, search_r
 		power: Puissance pour la pondération (par défaut 2)
 		block_size: Taille des blocs pour le traitement (augmenté à 2000 pour meilleure performance)
 		n_jobs: Nombre de processus parallèles (None = auto)
+		protect_mask_path: masque (non nul) à laisser en nodata après interpolation
 	"""
 	if n_jobs is None:
 		n_jobs = max(1, cpu_count() - 1)
@@ -177,10 +192,14 @@ def interpolate_nodata_idw_vectorized(chem_in, chem_out, no_data=-9999, search_r
 				total_nodata_interpolated += np.sum((result_block != no_data) & ~np.isnan(result_block))
 	
 	logger.info("Interpolation terminée (IDW vectorisé): {} pixels nodata interpolés.", total_nodata_interpolated)
+	_reapply_protect_mask(chem_out, protect_mask_path, no_data=no_data)
 
-def interpolate_nodata_hybrid(chem_in, chem_out, no_data=-9999, 
-                               connectivity=4, seuil_percent=50, 
-                               poids=1, rayon=50, n=1, block_size=2000):
+def interpolate_nodata_hybrid(
+	chem_in, chem_out, no_data=-9999,
+	connectivity=4, seuil_percent=50,
+	poids=1, rayon=50, n=1, block_size=2000,
+	protect_mask_path=None,
+):
 	"""
 	Interpole les pixels nodata avec la méthode hybride de xingng.
 	Combine interpolation locale sur les pixels de bord et constante statistique.
@@ -196,6 +215,7 @@ def interpolate_nodata_hybrid(chem_in, chem_out, no_data=-9999,
 		rayon: Rayon de recherche pour l'interpolation locale (défaut 50)
 		n: Facteur de pondération entre interpolation et constante (défaut 1)
 		block_size: Taille des blocs pour le traitement (défaut 2000, non utilisé actuellement)
+		protect_mask_path: masque (non nul) à laisser en nodata après interpolation
 	"""
 	# Supprimer le fichier de sortie
 	if os.path.exists(chem_out):
@@ -235,6 +255,7 @@ def interpolate_nodata_hybrid(chem_in, chem_out, no_data=-9999,
 		with rasterio.open(chem_out, 'w', **metadata) as dst:
 			dst.write(data, 1)
 		logger.info("Aucun pixel nodata à interpoler.")
+		_reapply_protect_mask(chem_out, protect_mask_path, no_data=no_data)
 		return
 	
 	# Identifier les trous connexes (composantes connexes de nodata)
@@ -365,8 +386,9 @@ def interpolate_nodata_hybrid(chem_in, chem_out, no_data=-9999,
 	
 	nodata_filled = np.sum(mask_nodata & (result != no_data))
 	logger.info("Interpolation terminée (hybride): {} pixels nodata interpolés.", nodata_filled)
+	_reapply_protect_mask(chem_out, protect_mask_path, no_data=no_data)
 
-def apply_moving_average(chem_in, chem_out, window_size=50, no_data=-9999):
+def apply_moving_average(chem_in, chem_out, window_size=50, no_data=-9999, protect_mask_path=None):
 	"""
 	Applique une moyenne sur une fenêtre glissante à l'image.
 	
@@ -428,4 +450,6 @@ def apply_moving_average(chem_in, chem_out, window_size=50, no_data=-9999):
 	metadata['dtype'] = result.dtype
 	with rasterio.open(chem_out, 'w', **metadata) as dst:
 		dst.write(result, 1)
+
+	_reapply_protect_mask(chem_out, protect_mask_path, no_data=no_data)
 
