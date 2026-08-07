@@ -1,15 +1,15 @@
 # 🚀 MAKE QUALITY GREAT AGAIN
 
-**Module open source d'autoqualification de GEMAUT — carte de précision à partir d'un MNS et d'un MNT**
+**Module open source d'autoqualification de GEMAUT — carte de précision associé à un MNT**
 
 Développé au Service de l'Imagerie Spatiale de l'IGN.
 
 ## 📖 Description
 
-MAKE QUALITY GREAT AGAIN (MQGA) calcule un **masque de qualité / carte de précision** à partir :
+MAKE QUALITY GREAT AGAIN (MQGA) calcule un **masque de qualité / carte de précision** associé à un MNT à partir :
 
-- d'un **MNS** (DSM)
 - d'un **MNT** (DTM), typiquement produit par GEMAUT
+- d'un **MNS** (DSM)
 
 Ce dépôt est le volet d'auto-qualification de [GEMAUT-pipeline](https://github.com/IGNF/GEMAUT-pipeline).
 
