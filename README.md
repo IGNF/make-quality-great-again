@@ -13,6 +13,10 @@ MAKE QUALITY GREAT AGAIN (MQGA) calcule un **masque de qualité / carte de préc
 
 Ce dépôt est le volet d'auto-qualification de [GEMAUT-pipeline](https://github.com/IGNF/GEMAUT-pipeline).
 
+Ce module d'auto-qualification est décrit en détail dans cette article publié dans la *Revue Française de Photogrammétrie et de Télédétection (RFPT)* :
+
+> [Lire l'article sur le site de la RFPT](https://rfpt.sfpt.fr/index.php/RFPT/article/view/739)
+
 ---
 
 ## 🏗️ Installation
