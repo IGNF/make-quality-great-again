@@ -127,21 +127,26 @@ def read_as_2D_float(filename,no_data):
 		data[data==no_data] = np.nan
 		
 	return data
-def save_ABSOLUTE_image_with_same_geometry(image, output_filename, src_filename):
-    # Calculer la valeur absolue de l'image
-    abs_image = np.abs(image)
-    
-    # Ouvrez l'image source pour lire sa géométrie
-    with rasterio.open(src_filename) as src:
-        metadata = src.meta.copy()  # Copiez les métadonnées de l'image source
-        
-    # Mettez à jour les métadonnées avec les nouvelles dimensions si nécessaire
-    metadata['height'], metadata['width'] = abs_image.shape
-    metadata['dtype'] = abs_image.dtype  # Assurez-vous que le type de données correspond à l'image de sortie
-    
-    # Utilisez les métadonnées copiées pour écrire l'image dans un fichier .tif
-    with rasterio.open(output_filename, 'w', **metadata) as dst:
-        dst.write(abs_image, 1)  # Écrit l'image dans la première bande en assumant qu'il s'agit d'une image à une seule bande
+	
+def save_ABSOLUTE_image_with_same_geometry(
+	image, output_filename, src_filename, no_data=-9999,
+):
+	"""Écrit |image| en GeoTIFF aligné sur src_filename.
+
+	Les pixels NoData / non finis restent NoData (évite abs(-9999) → 9999).
+	"""
+	abs_image = np.abs(image).astype(np.float32)
+	abs_image[(image == no_data) | ~np.isfinite(image)] = no_data
+
+	with rasterio.open(src_filename) as src:
+		metadata = src.meta.copy()
+
+	metadata['height'], metadata['width'] = abs_image.shape
+	metadata['dtype'] = abs_image.dtype
+	metadata['nodata'] = no_data
+
+	with rasterio.open(output_filename, 'w', **metadata) as dst:
+		dst.write(abs_image, 1)
 
 
 def crop_tile(args):
