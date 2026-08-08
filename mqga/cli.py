@@ -25,6 +25,7 @@ from mqga.decrochage import (
 	apply_mask_as_nodata,
 	detect_decrochage,
 )
+from mqga.quality_mask import DEFAULT_MAD_K
 
 LOG_FORMAT = "{time:YYYY-MM-DD HH:mm:ss} | {level:<7} | {message}"
 
@@ -56,7 +57,22 @@ Un fichier de log est écrit à côté de --out (même nom, extension .log).
 	parser.add_argument("--mnt", required=True, type=str, help="Chemin vers le MNT (DTM)")
 	parser.add_argument("--out", "-out", required=True, type=str, help="Masque de qualité en sortie")
 	parser.add_argument("--no", "-no", type=int, default=-9999, help="Valeur de NoData")
-	parser.add_argument("--per", "-per", type=float, default=0.05, help="Percentile local (défaut: 0.05)")
+	parser.add_argument(
+		"--per", "-per", type=float, default=0.05,
+		help="Percentile local si --stat percentile (défaut: 0.05)",
+	)
+	parser.add_argument(
+		"--stat", type=str, default="mad", choices=["mad", "percentile"],
+		help="Statistique locale sur la partie négative: mad (défaut) ou percentile",
+	)
+	parser.add_argument(
+		"--mad-k", type=float, default=DEFAULT_MAD_K,
+		help=f"Facteur k dans ε = |b| + k·MAD (défaut: {DEFAULT_MAD_K} ≈ LE90 gaussienne)",
+	)
+	parser.add_argument(
+		"--bias", type=float, default=0.0,
+		help="Biais systématique |b| ajouté à ε (m), défaut: 0 → ε = |b| + k·MAD",
+	)
 	parser.add_argument(
 		"--demiwinl", "-demiwinl", type=int, default=50,
 		help="Demie-taille en ligne de la fenêtre d'analyse",
@@ -138,6 +154,10 @@ def _validate_args(args):
 
 	if not (0.0 < args.per <= 1.0):
 		errors.append(f"--per doit être dans ]0, 1], reçu: {args.per}")
+	if args.mad_k <= 0:
+		errors.append(f"--mad-k doit être > 0, reçu: {args.mad_k}")
+	if args.bias < 0:
+		errors.append(f"--bias doit être >= 0, reçu: {args.bias}")
 	if args.tile <= 0:
 		errors.append(f"--tile doit être > 0, reçu: {args.tile}")
 	if args.pad < 0:
@@ -204,10 +224,15 @@ def main(argv=None):
 		logger.info("MNT: {}", args.mnt)
 		logger.info("OUT: {}", args.out)
 		logger.debug(
-			"Params: per={}, tile={}, pad={}, cpu={}, interp={}, demiwinl={}, winavg={}, "
-			"decrochage={}, seuilZ={}, seuilV={}, seuilSTD={}, morph_radius={}",
-			args.per, args.tile, args.pad, args.cpu, args.interp, args.demiwinl, args.winavg,
-			args.decrochage, args.seuilZ, args.seuilV, args.seuilSTD, args.morph_radius,
+			"Params: stat={}, per={}, mad_k={}, bias={}, tile={}, pad={}, cpu={}, interp={}, "
+			"demiwinl={}, winavg={}, decrochage={}, seuilZ={}, seuilV={}, seuilSTD={}, morph_radius={}",
+			args.stat, args.per, args.mad_k, args.bias, args.tile, args.pad, args.cpu, args.interp,
+			args.demiwinl, args.winavg, args.decrochage, args.seuilZ, args.seuilV,
+			args.seuilSTD, args.morph_radius,
+		)
+		logger.info(
+			"Statistique qualité: {} (mad-k={}, bias={})",
+			args.stat, args.mad_k, args.bias,
 		)
 
 		chem_mns = args.mns
@@ -275,6 +300,7 @@ def main(argv=None):
 		DoParallel(
 			RepTra, tiles.nbre_dalle_x, tiles.nbre_dalle_y,
 			dl, no_data, percentile, iNbreCPU,
+			stat=args.stat, mad_k=args.mad_k, bias=args.bias,
 		)
 
 		chem_out_tmp = chem_out.replace('.tif', '_tmp.tif')

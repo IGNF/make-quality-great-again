@@ -82,7 +82,10 @@ def init_worker():
 	signal.signal(signal.SIGINT, signal.SIG_IGN)
 	
 #################################################################################################### 
-def DoParallel(RepTra, NbreDalleX, NbreDalleY, dl, no_data, percentile, iNbreCPU):
+def DoParallel(
+	RepTra, NbreDalleX, NbreDalleY, dl, no_data, percentile, iNbreCPU,
+	stat="mad", mad_k=2.44, bias=0.0,
+):
 		
 	tasks = []
 	
@@ -99,7 +102,7 @@ def DoParallel(RepTra, NbreDalleX, NbreDalleY, dl, no_data, percentile, iNbreCPU
 			# Créer la version négative 
 			create_negative_image(chem_in_dalle, chem_in_dalle_NEG, no_data)
 			#
-			args=(chem_in_dalle_NEG, chem_out_dalle, dl, no_data, percentile)
+			args=(chem_in_dalle_NEG, chem_out_dalle, dl, no_data, percentile, stat, mad_k, bias)
 			tasks.append(args)
 
 	# Initialize the pool

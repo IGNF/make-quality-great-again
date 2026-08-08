@@ -113,7 +113,10 @@ sont mises en **NoData** dans la carte de précision, et exportées en shapefile
 ### Paramètres optionnels
 
 - `--no` : Valeur NoData (défaut: `-9999`)
-- `--per` : Percentile local (défaut: `0.05`)
+- `--stat` : `mad` (défaut) ou `percentile` — stats sur la partie négative de MNS−MNT
+- `--mad-k` : facteur \(k\) dans \(\varepsilon = |b| + k\cdot\mathrm{MAD}\) (défaut: `2.44`)
+- `--bias` : biais systématique \(|b|\) en mètres ajouté à ε (défaut: `0`)
+- `--per` : Percentile local si `--stat percentile` (défaut: `0.05`)
 - `--demiwinl` : Demie-taille en ligne de la fenêtre d'analyse (défaut: `50`)
 - `--demiwinc` : Demie-taille en colonne de la fenêtre d'analyse (défaut: `50`)
 - `--tile` : Taille de la tuile (défaut: `500`)
