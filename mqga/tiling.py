@@ -9,7 +9,11 @@ from multiprocessing import Pool
 from tqdm import tqdm
 
 from mqga.io_raster import crop_tile
-from mqga.quality_mask import create_negative_image, diff_2_mask_quality
+from mqga.quality_mask import (
+	DEFAULT_MIN_VALID,
+	create_negative_image,
+	diff_2_mask_quality,
+)
 
 
 @dataclass(frozen=True)
@@ -84,7 +88,7 @@ def init_worker():
 #################################################################################################### 
 def DoParallel(
 	RepTra, NbreDalleX, NbreDalleY, dl, no_data, percentile, iNbreCPU,
-	stat="mad", mad_k=2.44, bias=0.0,
+	stat="mad", mad_k=2.44, bias=0.0, min_valid=DEFAULT_MIN_VALID,
 ):
 		
 	tasks = []
@@ -102,7 +106,10 @@ def DoParallel(
 			# Créer la version négative 
 			create_negative_image(chem_in_dalle, chem_in_dalle_NEG, no_data)
 			#
-			args=(chem_in_dalle_NEG, chem_out_dalle, dl, no_data, percentile, stat, mad_k, bias)
+			args=(
+				chem_in_dalle_NEG, chem_out_dalle, dl, no_data, percentile,
+				stat, mad_k, bias, min_valid,
+			)
 			tasks.append(args)
 
 	# Initialize the pool

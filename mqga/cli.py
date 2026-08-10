@@ -25,7 +25,7 @@ from mqga.decrochage import (
 	apply_mask_as_nodata,
 	detect_decrochage,
 )
-from mqga.quality_mask import DEFAULT_MAD_K
+from mqga.quality_mask import DEFAULT_MAD_K, DEFAULT_MIN_VALID
 
 LOG_FORMAT = "{time:YYYY-MM-DD HH:mm:ss} | {level:<7} | {message}"
 
@@ -72,6 +72,14 @@ Un fichier de log est écrit à côté de --out (même nom, extension .log).
 	parser.add_argument(
 		"--bias", type=float, default=0.0,
 		help="Biais systématique |b| ajouté à ε (m), défaut: 0 → ε = |b| + k·MAD",
+	)
+	parser.add_argument(
+		"--min-valid", type=int, default=DEFAULT_MIN_VALID,
+		help=(
+			f"Effectif minimal de pixels négatifs valides dans la fenêtre locale "
+			f"(STANAG / historique filter_stats). Sous ce seuil → NoData "
+			f"[default: {DEFAULT_MIN_VALID}]"
+		),
 	)
 	parser.add_argument(
 		"--demiwinl", "-demiwinl", type=int, default=50,
@@ -163,6 +171,8 @@ def _validate_args(args):
 		errors.append(f"--mad-k doit être > 0, reçu: {args.mad_k}")
 	if args.bias < 0:
 		errors.append(f"--bias doit être >= 0, reçu: {args.bias}")
+	if args.min_valid < 1:
+		errors.append(f"--min-valid doit être >= 1, reçu: {args.min_valid}")
 	if args.tile <= 0:
 		errors.append(f"--tile doit être > 0, reçu: {args.tile}")
 	if args.pad < 0:
@@ -231,15 +241,16 @@ def main(argv=None):
 		logger.info("MNT: {}", args.mnt)
 		logger.info("OUT: {}", args.out)
 		logger.debug(
-			"Params: stat={}, per={}, mad_k={}, bias={}, tile={}, pad={}, cpu={}, interp={}, "
-			"demiwinl={}, winavg={}, decrochage={}, seuilZ={}, seuilV={}, seuilSTD={}, morph_radius={}",
-			args.stat, args.per, args.mad_k, args.bias, args.tile, args.pad, args.cpu, args.interp,
-			args.demiwinl, args.winavg, args.decrochage, args.seuilZ, args.seuilV,
-			args.seuilSTD, args.morph_radius,
+			"Params: stat={}, per={}, mad_k={}, bias={}, min_valid={}, tile={}, pad={}, cpu={}, "
+			"interp={}, demiwinl={}, winavg={}, decrochage={}, seuilZ={}, seuilV={}, seuilSTD={}, "
+			"morph_radius={}",
+			args.stat, args.per, args.mad_k, args.bias, args.min_valid, args.tile, args.pad,
+			args.cpu, args.interp, args.demiwinl, args.winavg, args.decrochage, args.seuilZ,
+			args.seuilV, args.seuilSTD, args.morph_radius,
 		)
 		logger.info(
-			"Statistique qualité: {} (mad-k={}, bias={})",
-			args.stat, args.mad_k, args.bias,
+			"Statistique qualité: {} (mad-k={}, bias={}, min-valid={})",
+			args.stat, args.mad_k, args.bias, args.min_valid,
 		)
 
 		chem_mns = args.mns
@@ -308,6 +319,7 @@ def main(argv=None):
 			RepTra, tiles.nbre_dalle_x, tiles.nbre_dalle_y,
 			dl, no_data, percentile, iNbreCPU,
 			stat=args.stat, mad_k=args.mad_k, bias=args.bias,
+			min_valid=args.min_valid,
 		)
 
 		chem_out_tmp = chem_out.replace('.tif', '_tmp.tif')

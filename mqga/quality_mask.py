@@ -13,36 +13,43 @@ from mqga.io_raster import (
 # σ ≈ 1.4826·MAD ; LE90 ≈ 1.645·σ → ε ≈ 2.44·MAD
 DEFAULT_MAD_K = 2.44
 
+# Effectif minimal de pixels négatifs valides dans la fenêtre locale
+# (STANAG / historique gs2_mnt_mq_local.filter_stats size=167).
+# En dessous → NoData (la statistique n'est pas considérée fiable).
+DEFAULT_MIN_VALID = 167
 
-def calculate_cdf_percent(pixel_array, percentile):
-	# Exclude the no-data value and calculate the 5% value of the CDF
+
+def calculate_cdf_percent(pixel_array, percentile, no_data=-9999, min_valid=DEFAULT_MIN_VALID):
+	# Exclude the no-data value and calculate the percentile of the CDF
 	pixel_array = np.asarray(pixel_array, dtype=np.float64)
-	pixel_array = pixel_array[np.isfinite(pixel_array) & (pixel_array != -9999)]
-	if len(pixel_array) == 0:
-		return -9999  # Return no-data value if the window only contains no-data values
+	pixel_array = pixel_array[np.isfinite(pixel_array) & (pixel_array != no_data)]
+	if len(pixel_array) < min_valid:
+		return no_data
 	sorted_pixels = np.sort(pixel_array)
 	index_5_percent = int(np.ceil(percentile * len(sorted_pixels))) - 1
 	return sorted_pixels[max(0, index_5_percent)]
 
 
-def calculate_mad(pixel_array, no_data=-9999):
+def calculate_mad(pixel_array, no_data=-9999, min_valid=DEFAULT_MIN_VALID):
 	"""
 	MAD sur les échantillons valides de la fenêtre (partie négative déjà filtrée en amont).
 	MAD = median(|x − median(x)|)
 	"""
 	arr = np.asarray(pixel_array, dtype=np.float64)
 	v = arr[np.isfinite(arr) & (arr != no_data)]
-	if v.size == 0:
-		return -9999
+	if v.size < min_valid:
+		return no_data
 	med = np.median(v)
 	return float(np.median(np.abs(v - med)))
 
 
-def calculate_mad_le90(pixel_array, mad_k=DEFAULT_MAD_K, no_data=-9999):
+def calculate_mad_le90(
+	pixel_array, mad_k=DEFAULT_MAD_K, no_data=-9999, min_valid=DEFAULT_MIN_VALID,
+):
 	"""k·MAD (défaut mad_k=2.44 ≈ LE90 sous hypothèse gaussienne). Le biais |b| est ajouté ensuite."""
-	mad = calculate_mad(pixel_array, no_data=no_data)
-	if mad == -9999:
-		return -9999
+	mad = calculate_mad(pixel_array, no_data=no_data, min_valid=min_valid)
+	if mad == no_data:
+		return no_data
 	return mad_k * mad
 
 
@@ -62,14 +69,19 @@ def _apply_additive_bias(result, bias, no_data, stat):
 
 def process_image(
 	image, dl, no_data, percentile, stat="mad", mad_k=DEFAULT_MAD_K, bias=0.0,
+	min_valid=DEFAULT_MIN_VALID,
 ):
 	# Pad image to handle the borders
 	padded_image = np.pad(image, dl, mode='constant', constant_values=no_data)
 	# Use generic_filter from scipy.ndimage to apply the function over a local window
 	if stat == "mad":
-		fn = lambda x: calculate_mad_le90(x, mad_k=mad_k, no_data=no_data)
+		fn = lambda x: calculate_mad_le90(
+			x, mad_k=mad_k, no_data=no_data, min_valid=min_valid,
+		)
 	else:
-		fn = lambda x: calculate_cdf_percent(x, percentile)
+		fn = lambda x: calculate_cdf_percent(
+			x, percentile, no_data=no_data, min_valid=min_valid,
+		)
 	result = generic_filter(
 		padded_image,
 		fn,
@@ -83,18 +95,24 @@ def process_image(
 
 
 def diff_2_mask_quality(args):
-	# compat: 5 (ancien) / 7 (stat+mad_k) / 8 (+bias)
+	# compat: 5 (ancien) / 7 (stat+mad_k) / 8 (+bias) / 9 (+min_valid)
 	if len(args) == 5:
 		chem_in, chem_out, dl, no_data, percentile = args
 		stat, mad_k, bias = "percentile", DEFAULT_MAD_K, 0.0
+		min_valid = DEFAULT_MIN_VALID
 	elif len(args) == 7:
 		chem_in, chem_out, dl, no_data, percentile, stat, mad_k = args
 		bias = 0.0
-	else:
+		min_valid = DEFAULT_MIN_VALID
+	elif len(args) == 8:
 		chem_in, chem_out, dl, no_data, percentile, stat, mad_k, bias = args
+		min_valid = DEFAULT_MIN_VALID
+	else:
+		chem_in, chem_out, dl, no_data, percentile, stat, mad_k, bias, min_valid = args
 	data_in = read_as_2D_float(chem_in, no_data)
 	result = process_image(
 		data_in, dl, no_data, percentile, stat=stat, mad_k=mad_k, bias=bias,
+		min_valid=min_valid,
 	)
 	save_ABSOLUTE_image_with_same_geometry(
 		result, chem_out, chem_in, no_data=no_data
