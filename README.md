@@ -124,6 +124,7 @@ sont mises en **NoData** dans la carte de précision, et exportées en shapefile
 - `--winavg` : Fenêtre de moyenne glissante finale (défaut: `50`)
 - `--interp` : Méthode d'interpolation des NoData  
   (`hybrid` par défaut, ou `idw`)
+- `--hole-vcalc` : constante de trou en `hybrid` — `p90` (défaut) ou `min` (historique)
 - `--clean` : Vider le répertoire temporaire s'il existe déjà
 - `--verbose` : Activer le niveau DEBUG sur la console
 - `--decrochage` : activer la détection des zones de décrochage MNT
@@ -166,18 +167,15 @@ sont mises en **NoData** dans la carte de précision, et exportées en shapefile
 
 ## 🩹 Interpolation hybride (`--interp hybrid`) — recommandée
 
-Équivalent Python de :
-
-```text
-xingng -FB:2:C:50,1:1:50:1 -EM=-9999
-```
+Inspirée de `xingng -FB:2:...` (IDW bord + constante au centre).  
+V1 : l’ancre de trou est `V_calc = P90(ε_bord)` au lieu du min filtré historique.
 
 ### Principe
 
 1. Identification des **trous connexes** (zones NoData)
 2. Détection des **pixels de bord** (connexité 4)
 3. Pour chaque trou :
-   - calcul d'une constante `V_calc` : après exclusion des 50 % plus petites valeurs de bord, `V_calc` correspond au minimum des valeurs restantes
+   - calcul d'une constante `V_calc = P90(ε_bord)` (percentile 90 des valeurs de bord du trou) ; `--hole-vcalc {min,p90}` (défaut `p90`) permet de retrouver le mode historique `min`
    - interpolation **IDW** locale sur les pixels de bord (rayon 50, poids 1)
    - combinaison selon la distance au bord : proche → IDW, centre → `V_calc`
 

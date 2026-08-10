@@ -95,6 +95,11 @@ Un fichier de log est écrit à côté de --out (même nom, extension .log).
 		help="Méthode d'interpolation des NoData: hybrid (défaut) ou idw",
 	)
 	parser.add_argument(
+		"--hole-vcalc", type=str, default="p90",
+		choices=["min", "p90"],
+		help="Constante de trou en hybrid: p90=P90(ε_bord) (défaut) ou min (historique)",
+	)
+	parser.add_argument(
 		"--clean", "-clean", action="store_true",
 		help="Supprimer le contenu du répertoire temporaire s'il existe déjà",
 	)
@@ -190,6 +195,7 @@ def _validate_args(args):
 def _run_interpolation(
 	interp_method, chem_out_tmp, chem_out_clean_bouchage, no_data, iNbreCPU,
 	protect_mask_path=None,
+	hole_vcalc="p90",
 ):
 	logger.info("Post-traitement: interpolation des pixels nodata (méthode: {})...", interp_method)
 
@@ -204,6 +210,7 @@ def _run_interpolation(
 			chem_out_tmp, chem_out_clean_bouchage, no_data,
 			connectivity=4, seuil_percent=50, poids=1, rayon=50, n=1,
 			protect_mask_path=protect_mask_path,
+			vcalc_mode=hole_vcalc,
 		)
 
 
@@ -315,6 +322,7 @@ def main(argv=None):
 		_run_interpolation(
 			args.interp, chem_out_tmp, chem_out_clean_bouchage, no_data, iNbreCPU,
 			protect_mask_path=protect_mask_path,
+			hole_vcalc=args.hole_vcalc,
 		)
 
 		apply_moving_average(

@@ -199,23 +199,24 @@ def interpolate_nodata_hybrid(
 	connectivity=4, seuil_percent=50,
 	poids=1, rayon=50, n=1, block_size=2000,
 	protect_mask_path=None,
+	vcalc_mode="p90",
 ):
 	"""
 	Interpole les pixels nodata avec la méthode hybride de xingng.
 	Combine interpolation locale sur les pixels de bord et constante statistique.
-	Équivalent à xingng -FB:2:C:50,1:1:50:1
 	
 	Args:
 		chem_in: Chemin vers l'image d'entrée
 		chem_out: Chemin vers l'image de sortie
 		no_data: Valeur nodata
 		connectivity: Connexité (4 ou 8, par défaut 4)
-		seuil_percent: Pourcentage de valeurs minimales à exclure pour V_calc (défaut 50)
+		seuil_percent: Pourcentage de valeurs minimales à exclure si vcalc_mode="min" (défaut 50)
 		poids: Puissance pour la pondération IDW (défaut 1 = linéaire)
 		rayon: Rayon de recherche pour l'interpolation locale (défaut 50)
 		n: Facteur de pondération entre interpolation et constante (défaut 1)
 		block_size: Taille des blocs pour le traitement (défaut 2000, non utilisé actuellement)
 		protect_mask_path: masque (non nul) à laisser en nodata après interpolation
+		vcalc_mode: Constante de trou — "p90" = P90(ε_bord) (défaut), "min" = historique
 	"""
 	# Supprimer le fichier de sortie
 	if os.path.exists(chem_out):
@@ -284,16 +285,20 @@ def interpolate_nodata_hybrid(
 			# print(f"  Attention: Trou {hole_id} n'a pas de pixels de bord, ignoré.")  # Désactivé pour ne garder que la barre de progression
 			continue
 		
-		# Calculer V_calc pour ce trou
-		# Exclure seuil% des plus faibles valeurs, puis prendre le minimum
-		values_sorted = sorted(border_values)
-		n_exclude = int(len(values_sorted) * seuil_percent / 100)
-		if n_exclude >= len(values_sorted):
-			n_exclude = len(values_sorted) - 1
-		if n_exclude < 0:
-			n_exclude = 0
-		values_filtered = values_sorted[n_exclude:]
-		V_calc = min(values_filtered) if len(values_filtered) > 0 else values_sorted[-1]
+		# Calculer V_calc pour ce trou (ancre du centre)
+		# p90 (défaut): P90(ε_bord) — moins optimiste qu'un min, moins sensible qu'un max
+		# min: historique — exclure seuil% des plus faibles, puis minimum des restantes
+		if vcalc_mode == "min":
+			values_sorted = sorted(border_values)
+			n_exclude = int(len(values_sorted) * seuil_percent / 100)
+			if n_exclude >= len(values_sorted):
+				n_exclude = len(values_sorted) - 1
+			if n_exclude < 0:
+				n_exclude = 0
+			values_filtered = values_sorted[n_exclude:]
+			V_calc = min(values_filtered) if len(values_filtered) > 0 else values_sorted[-1]
+		else:
+			V_calc = float(np.percentile(np.asarray(border_values, dtype=np.float32), 90))
 		
 		# Coordonnées des pixels de bord pour ce trou
 		border_coords = np.column_stack(np.where(border_mask))
