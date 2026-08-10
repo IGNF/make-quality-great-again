@@ -25,6 +25,19 @@ def _reapply_protect_mask(chem_raster, protect_mask_path, no_data=-9999):
 	logger.info("Masque protégé réappliqué (nodata): {}", protect_mask_path)
 
 
+def _load_protect_bool(protect_mask_path, shape):
+	"""True = pixel protégé (décrochage) : ne pas interpoler. False partout si pas de masque."""
+	if not protect_mask_path:
+		return np.zeros(shape, dtype=bool)
+	with rasterio.open(protect_mask_path, "r") as src:
+		mask = src.read(1)
+	if mask.shape != shape:
+		raise ValueError(
+			f"Masque protégé {mask.shape} incompatible avec raster {shape}"
+		)
+	return mask != 0
+
+
 def _process_block_idw(args):
 	"""
 	Fonction helper pour le traitement parallèle des blocs IDW.
@@ -33,7 +46,7 @@ def _process_block_idw(args):
 	from scipy.spatial import cKDTree
 	
 	(block_y, block_x, chem_in_local, height_local, width_local, 
-	 block_size, search_radius, no_data, power) = args
+	 block_size, search_radius, no_data, power, protect_mask_path) = args
 	
 	# Ouvrir le fichier dans le worker
 	with rasterio.open(chem_in_local, 'r') as src_local:
@@ -54,6 +67,10 @@ def _process_block_idw(args):
 										  col_end - col_start, 
 										  row_end - row_start)
 		block_data = src_local.read(1, window=window).astype(np.float32)
+		block_protected = np.zeros(block_data.shape, dtype=bool)
+		if protect_mask_path:
+			with rasterio.open(protect_mask_path, 'r') as src_prot:
+				block_protected = src_prot.read(1, window=window) != 0
 	
 	# Masques
 	mask_valid = (block_data != no_data) & ~np.isnan(block_data)
@@ -70,7 +87,8 @@ def _process_block_idw(args):
 	process_mask[process_row_off:process_row_off + process_height,
 				 process_col_off:process_col_off + process_width] = True
 	
-	process_nodata = mask_nodata & process_mask
+	# Ne pas interpoler les pixels protégés (décrochage) : resteront nodata
+	process_nodata = mask_nodata & process_mask & ~block_protected
 	
 	# Créer le bloc de résultat
 	result_block = block_data[process_row_off:process_row_off + process_height,
@@ -143,7 +161,7 @@ def interpolate_nodata_idw_vectorized(
 		power: Puissance pour la pondération (par défaut 2)
 		block_size: Taille des blocs pour le traitement (augmenté à 2000 pour meilleure performance)
 		n_jobs: Nombre de processus parallèles (None = auto)
-		protect_mask_path: masque (non nul) à laisser en nodata après interpolation
+		protect_mask_path: masque (non nul) exclus du fill et remis en nodata après
 	"""
 	if n_jobs is None:
 		n_jobs = max(1, cpu_count() - 1)
@@ -178,7 +196,7 @@ def interpolate_nodata_idw_vectorized(
 			
 			# Traiter les blocs en parallèle
 			# Passer tous les paramètres nécessaires à la fonction globale
-			block_args = [(block_y, block_x, chem_in, height, width, block_size, search_radius, no_data, power) 
+			block_args = [(block_y, block_x, chem_in, height, width, block_size, search_radius, no_data, power, protect_mask_path) 
 						  for block_y in range(n_blocks_y) for block_x in range(n_blocks_x)]
 			
 			total_nodata_interpolated = 0
@@ -215,7 +233,7 @@ def interpolate_nodata_hybrid(
 		rayon: Rayon de recherche pour l'interpolation locale (défaut 50)
 		n: Facteur de pondération entre interpolation et constante (défaut 1)
 		block_size: Taille des blocs pour le traitement (défaut 2000, non utilisé actuellement)
-		protect_mask_path: masque (non nul) à laisser en nodata après interpolation
+		protect_mask_path: masque (non nul) exclus du fill et remis en nodata après
 		vcalc_mode: Constante de trou — "p90" = P90(ε_bord) (défaut), "min" = historique
 	"""
 	# Supprimer le fichier de sortie
@@ -251,16 +269,33 @@ def interpolate_nodata_hybrid(
 	# Identifier les pixels nodata et valides
 	mask_nodata = (data == no_data) | np.isnan(data)
 	mask_valid = ~mask_nodata
+	# Décrochage / masque protégé : rester nodata, ne pas entrer dans les trous à boucher
+	mask_protected = _load_protect_bool(protect_mask_path, data.shape)
+	mask_to_fill = mask_nodata & ~mask_protected
+	n_nodata = int(np.sum(mask_nodata))
+	n_protected = int(np.sum(mask_protected))
+	n_protected_skip = int(np.sum(mask_nodata & mask_protected))
+	n_to_fill = int(np.sum(mask_to_fill))
+	logger.info(
+		"Interpolation hybride: protect_mask={}, nodata={}, protégés={}, "
+		"exclus du fill={}, à interpoler={}",
+		protect_mask_path or "(aucun)",
+		n_nodata,
+		n_protected,
+		n_protected_skip,
+		n_to_fill,
+	)
 	
-	if not np.any(mask_nodata):
+	if not np.any(mask_to_fill):
 		with rasterio.open(chem_out, 'w', **metadata) as dst:
 			dst.write(data, 1)
-		logger.info("Aucun pixel nodata à interpoler.")
+		logger.info("Aucun pixel nodata à interpoler (hors zones protégées).")
 		_reapply_protect_mask(chem_out, protect_mask_path, no_data=no_data)
 		return
 	
-	# Identifier les trous connexes (composantes connexes de nodata)
-	labeled_holes, num_holes = label(mask_nodata, structure=structure)
+	# Identifier les trous connexes (composantes connexes de nodata non protégés)
+	labeled_holes, num_holes = label(mask_to_fill, structure=structure)
+	logger.info("Interpolation hybride: {} trou(s) connexe(s) à boucher.", num_holes)
 	
 	# print(f"Traitement de {num_holes} trou(s) connexe(s)...")  # Désactivé pour ne garder que la barre de progression
 	
@@ -389,7 +424,7 @@ def interpolate_nodata_hybrid(
 	with rasterio.open(chem_out, 'w', **metadata) as dst:
 		dst.write(result, 1)
 	
-	nodata_filled = np.sum(mask_nodata & (result != no_data))
+	nodata_filled = int(np.sum(mask_to_fill & (result != no_data)))
 	logger.info("Interpolation terminée (hybride): {} pixels nodata interpolés.", nodata_filled)
 	_reapply_protect_mask(chem_out, protect_mask_path, no_data=no_data)
 
