@@ -106,6 +106,7 @@ sont mises en **NoData** dans la carte de précision, et exportées en shapefile
 
 - `--mns` : MNS d'entrée (DSM)
 - `--mnt` : MNT d'entrée (DTM)
+- `--reso` : résolution de travail en mètres (ex. `4`) ; impose une grille (emprise/CRS du MNS). Absent = grille native du MNS
 - `--out` : Masque de qualité en sortie
 - `--cpu` : Nombre de CPUs à utiliser
 - `--RepTra` : Répertoire de travail temporaire
@@ -144,12 +145,13 @@ sont mises en **NoData** dans la carte de précision, et exportées en shapefile
 ### Entrées
 
 - **MNS** et **MNT** au format GeoTIFF
-- Ils peuvent avoir des **résolutions différentes** ; la carte de précision en sortie est calée sur la **grille du MNS**
+- Ils peuvent avoir des **résolutions différentes** ; par défaut la carte de précision est calée sur la **grille du MNS**
+- Avec `--reso` : MNS et MNT sont rééchantillonnés sur une grille de travail à cette résolution (m), emprise/CRS du MNS
 - Si un pixel MNS ou MNT est NoData → pixel NoData dans la différence
 
 ### Sorties
 
-- `--out` : masque de qualité / carte de précision LE90 estimée locale (GeoTIFF, résolution MNS)
+- `--out` : masque de qualité / carte de précision LE90 estimée locale (GeoTIFF ; résolution MNS, ou `--reso` si fourni)
 - Avec `--decrochage` : shapefile `*_zones_decrochage.shp` (zones non garanties) ;
   ces pixels restent **NoData** dans `--out` (non interpolés)
 - Fichier log : même chemin que `--out`, extension `.log`

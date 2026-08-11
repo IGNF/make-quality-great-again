@@ -63,6 +63,14 @@ Un fichier de log est écrit à côté de --out (même nom, extension .log).
 	parser.add_argument("--mns", required=True, type=str, help="Chemin vers le MNS (DSM)")
 	parser.add_argument("--mnt", required=True, type=str, help="Chemin vers le MNT (DTM)")
 	parser.add_argument("--out", "-out", required=True, type=str, help="Masque de qualité en sortie")
+	parser.add_argument(
+		"--reso", type=float, default=None,
+		help=(
+			"Résolution de travail en mètres (ex. 4). "
+			"Impose une grille (emprise/CRS du MNS, pixels carrés). "
+			"Absent = grille native du MNS."
+		),
+	)
 	parser.add_argument("--no", "-no", type=int, default=-9999, help="Valeur de NoData")
 	parser.add_argument(
 		"--per", "-per", type=float, default=0.05,
@@ -192,6 +200,8 @@ def _validate_args(args):
 		errors.append(f"Fichier MNS introuvable: {args.mns}")
 	if not os.path.isfile(args.mnt):
 		errors.append(f"Fichier MNT introuvable: {args.mnt}")
+	if args.reso is not None and args.reso <= 0:
+		errors.append(f"--reso doit être > 0, reçu: {args.reso}")
 
 	if not (0.0 < args.per <= 1.0):
 		errors.append(f"--per doit être dans ]0, 1], reçu: {args.per}")
@@ -314,10 +324,18 @@ def main(argv=None):
 
 		init_rep_tra(RepTra, clean=args.clean)
 
-		# Différence MNS - MNT (grille MNS)
+		# Différence MNS - MNT (grille MNS, ou grille --reso)
 		chem_in = os.path.join(RepTra, "diff_MNS_MNT.tif")
-		logger.info("Calcul de la différence MNS - MNT (grille MNS)...")
-		compute_mns_mnt_diff(chem_mns, chem_mnt, chem_in, no_data=no_data)
+		if args.reso is not None:
+			logger.info(
+				"Calcul de la différence MNS - MNT (grille de travail {} m)...",
+				args.reso,
+			)
+		else:
+			logger.info("Calcul de la différence MNS - MNT (grille MNS)...")
+		compute_mns_mnt_diff(
+			chem_mns, chem_mnt, chem_in, no_data=no_data, reso=args.reso,
+		)
 		logger.info("Différence écrite: {}", chem_in)
 
 		protect_mask_path = None

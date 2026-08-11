@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Lecture / écriture rasters et utilitaires I/O."""
+import math
 import os
 import shutil
 from dataclasses import dataclass
@@ -9,6 +10,7 @@ import numpy as np
 import rasterio
 from loguru import logger
 from rasterio.enums import Resampling
+from rasterio.transform import from_origin
 from rasterio.warp import reproject
 
 
@@ -259,12 +261,42 @@ def _same_grid(src_a, src_b):
 	)
 
 
-def compute_mns_mnt_diff(chem_mns, chem_mnt, chem_out, no_data=-9999):
+def _work_grid_from_mns(src_mns, reso):
 	"""
-	Calcule la différence MNS - MNT sur la grille du MNS.
+	Grille de travail : emprise + CRS du MNS, pixels carrés de taille reso (m).
+	Pas de contrôle vis-à-vis de la résolution native du MNS.
+	"""
+	left, bottom, right, top = src_mns.bounds
+	width = max(1, int(math.ceil((right - left) / float(reso))))
+	height = max(1, int(math.ceil((top - bottom) / float(reso))))
+	transform = from_origin(left, top, float(reso), float(reso))
+	return width, height, transform
 
-	Si le MNT n'est pas sur la même grille (résolution / transform / CRS),
-	il est rééchantillonné sur la grille du MNS (bilinéaire).
+
+def _reproject_band_to_grid(src, dst_array, dst_transform, dst_crs, src_nodata, dst_nodata):
+	reproject(
+		source=rasterio.band(src, 1),
+		destination=dst_array,
+		src_transform=src.transform,
+		src_crs=src.crs,
+		src_nodata=src_nodata,
+		dst_transform=dst_transform,
+		dst_crs=dst_crs,
+		dst_nodata=dst_nodata,
+		resampling=Resampling.bilinear,
+	)
+
+
+def compute_mns_mnt_diff(chem_mns, chem_mnt, chem_out, no_data=-9999, reso=None):
+	"""
+	Calcule la différence MNS - MNT.
+
+	- reso is None: grille du MNS (comportement historique). Si besoin, le MNT
+	  est rééchantillonné sur cette grille (bilinéaire).
+	- reso > 0: grille de travail imposée (emprise/CRS du MNS, pixel = reso m).
+	  MNS et MNT sont rééchantillonnés sur cette grille (pas de contrôle vs
+	  résolution native du MNS).
+
 	Un pixel est nodata en sortie si MNS ou MNT (resamplé) est nodata / NaN.
 	"""
 	with rasterio.open(chem_mns, 'r') as src_mns, rasterio.open(chem_mnt, 'r') as src_mnt:
@@ -275,6 +307,47 @@ def compute_mns_mnt_diff(chem_mns, chem_mnt, chem_out, no_data=-9999):
 
 		nodata_mns = src_mns.nodata if src_mns.nodata is not None else no_data
 		nodata_mnt = src_mnt.nodata if src_mnt.nodata is not None else no_data
+
+		# --- Grille de travail imposée (--reso) ---
+		if reso is not None:
+			width, height, transform = _work_grid_from_mns(src_mns, reso)
+			logger.info(
+				"Grille de travail imposée: reso={} m → {}x{} "
+				"(MNS natif {}x{}, pas≈{:.6g} m ; MNT natif {}x{})",
+				reso, width, height,
+				src_mns.width, src_mns.height, abs(src_mns.res[0]),
+				src_mnt.width, src_mnt.height,
+			)
+			metadata = {
+				'driver': 'GTiff',
+				'height': height,
+				'width': width,
+				'count': 1,
+				'dtype': 'float32',
+				'crs': src_mns.crs,
+				'transform': transform,
+				'nodata': no_data,
+				'compress': 'lzw',
+			}
+			mns = np.full((height, width), no_data, dtype=np.float32)
+			mnt = np.full((height, width), no_data, dtype=np.float32)
+			_reproject_band_to_grid(
+				src_mns, mns, transform, src_mns.crs, nodata_mns, no_data,
+			)
+			_reproject_band_to_grid(
+				src_mnt, mnt, transform, src_mns.crs, nodata_mnt, no_data,
+			)
+			mask_invalid = (
+				(mns == no_data) | np.isnan(mns)
+				| (mnt == no_data) | np.isnan(mnt)
+			)
+			diff = mns - mnt
+			diff[mask_invalid] = no_data
+			with rasterio.open(chem_out, 'w', **metadata) as dst:
+				dst.write(diff.astype(np.float32), 1)
+			return chem_out
+
+		# --- Grille MNS (historique) ---
 		aligned = _same_grid(src_mns, src_mnt)
 
 		if not aligned:
