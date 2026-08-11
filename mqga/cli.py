@@ -13,6 +13,8 @@ from mqga.io_raster import GetInfo, init_rep_tra, compute_mns_mnt_diff
 from mqga.tiling import CalculNombreDallesXY, MakeDecoupage, DoParallel
 from mqga.mosaic import Make_Assemblage_FINAL
 from mqga.interpolate import (
+	DEFAULT_HOLE_ALPHA,
+	DEFAULT_HOLE_LAMBDA,
 	interpolate_nodata_idw_vectorized,
 	interpolate_nodata_hybrid,
 	apply_moving_average,
@@ -120,6 +122,20 @@ Un fichier de log est écrit à côté de --out (même nom, extension .log).
 		help="Constante de trou en hybrid: p90=P90(ε_bord) (défaut) ou min (historique)",
 	)
 	parser.add_argument(
+		"--hole-alpha", type=float, default=DEFAULT_HOLE_ALPHA,
+		help=(
+			f"V2a hybrid: pénalité α·d·Δ (m d'incertitude par m de distance au bord). "
+			f"0 = rampe off (V1) [default: {DEFAULT_HOLE_ALPHA}]"
+		),
+	)
+	parser.add_argument(
+		"--hole-lambda", type=float, default=DEFAULT_HOLE_LAMBDA,
+		help=(
+			f"V2a hybrid: plafond ε ≤ λ·V_calc (ignoré si --hole-alpha=0) "
+			f"[default: {DEFAULT_HOLE_LAMBDA}]"
+		),
+	)
+	parser.add_argument(
 		"--clean", "-clean", action="store_true",
 		help="Supprimer le contenu du répertoire temporaire s'il existe déjà",
 	)
@@ -209,6 +225,10 @@ def _validate_args(args):
 		errors.append(f"--seuilSTD doit être >= 0, reçu: {args.seuilSTD}")
 	if args.morph_radius < 0:
 		errors.append(f"--morph-radius doit être >= 0, reçu: {args.morph_radius}")
+	if args.hole_alpha < 0:
+		errors.append(f"--hole-alpha doit être >= 0, reçu: {args.hole_alpha}")
+	if args.hole_lambda <= 0:
+		errors.append(f"--hole-lambda doit être > 0, reçu: {args.hole_lambda}")
 
 	out_dir = os.path.dirname(os.path.abspath(args.out))
 	if out_dir and not os.path.isdir(out_dir):
@@ -222,6 +242,8 @@ def _run_interpolation(
 	interp_method, chem_out_tmp, chem_out_clean_bouchage, no_data, iNbreCPU,
 	protect_mask_path=None,
 	hole_vcalc="p90",
+	hole_alpha=DEFAULT_HOLE_ALPHA,
+	hole_lambda=DEFAULT_HOLE_LAMBDA,
 ):
 	logger.info("Post-traitement: interpolation des pixels nodata (méthode: {})...", interp_method)
 
@@ -237,6 +259,8 @@ def _run_interpolation(
 			connectivity=4, seuil_percent=50, poids=1, rayon=50, n=1,
 			protect_mask_path=protect_mask_path,
 			vcalc_mode=hole_vcalc,
+			hole_alpha=hole_alpha,
+			hole_lambda=hole_lambda,
 		)
 
 
@@ -358,6 +382,8 @@ def main(argv=None):
 			args.interp, chem_out_tmp, chem_out_clean_bouchage, no_data, iNbreCPU,
 			protect_mask_path=protect_mask_path,
 			hole_vcalc=args.hole_vcalc,
+			hole_alpha=args.hole_alpha,
+			hole_lambda=args.hole_lambda,
 		)
 
 		apply_moving_average(

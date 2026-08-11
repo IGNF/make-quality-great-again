@@ -212,12 +212,20 @@ def interpolate_nodata_idw_vectorized(
 	logger.info("Interpolation terminée (IDW vectorisé): {} pixels nodata interpolés.", total_nodata_interpolated)
 	_reapply_protect_mask(chem_out, protect_mask_path, no_data=no_data)
 
+# V2a — pénalité distance + plafond (hybrid)
+# pénalité = α · d · Δ ; ε = min(ε0 + pénalité, λ · V_calc) ; α=0 → comportement V1
+DEFAULT_HOLE_ALPHA = 0.01   # m d'incertitude par mètre de distance au bord
+DEFAULT_HOLE_LAMBDA = 1.5   # plafond ε ≤ λ · V_calc
+
+
 def interpolate_nodata_hybrid(
 	chem_in, chem_out, no_data=-9999,
 	connectivity=4, seuil_percent=50,
 	poids=1, rayon=50, n=1, block_size=2000,
 	protect_mask_path=None,
 	vcalc_mode="p90",
+	hole_alpha=DEFAULT_HOLE_ALPHA,
+	hole_lambda=DEFAULT_HOLE_LAMBDA,
 ):
 	"""
 	Interpole les pixels nodata avec la méthode hybride de xingng.
@@ -235,6 +243,8 @@ def interpolate_nodata_hybrid(
 		block_size: Taille des blocs pour le traitement (défaut 2000, non utilisé actuellement)
 		protect_mask_path: masque (non nul) exclus du fill et remis en nodata après
 		vcalc_mode: Constante de trou — "p90" = P90(ε_bord) (défaut), "min" = historique
+		hole_alpha: V2a — pénalité α·d·Δ (m/m) ; 0 = rampe off (V1 pur)
+		hole_lambda: V2a — plafond ε ≤ λ·V_calc (ignoré si hole_alpha=0)
 	"""
 	# Supprimer le fichier de sortie
 	if os.path.exists(chem_out):
@@ -262,6 +272,8 @@ def interpolate_nodata_hybrid(
 	with rasterio.open(chem_in, 'r') as src:
 		metadata = src.meta.copy()
 		height, width = src.height, src.width
+		# Résolution terrain (m/px) pour la pénalité V2a
+		pixel_size = float(abs(src.res[0])) if src.res[0] != 0 else float(abs(src.transform.a))
 		
 		# Lire toute l'image (nécessaire pour identifier les trous connexes)
 		data = src.read(1).astype(np.float32)
@@ -285,6 +297,15 @@ def interpolate_nodata_hybrid(
 		n_protected_skip,
 		n_to_fill,
 	)
+	use_ramp = float(hole_alpha) > 0
+	if use_ramp:
+		logger.info(
+			"Interpolation hybride V2a: alpha={} m/m, lambda={}, Δ={:.6g} m/px "
+			"(ε = min(ε0 + α·d·Δ, λ·V_calc))",
+			hole_alpha, hole_lambda, pixel_size,
+		)
+	else:
+		logger.info("Interpolation hybride V2a: alpha=0 → rampe désactivée (comportement V1)")
 	
 	if not np.any(mask_to_fill):
 		with rasterio.open(chem_out, 'w', **metadata) as dst:
@@ -396,7 +417,7 @@ def interpolate_nodata_hybrid(
 						# Interpolation IDW
 						V_interpole[np.where(mask_in_radius)[0][j]] = np.sum(weights * valid_values) / np.sum(weights)
 			
-			# Calculer V final pour ce batch
+			# Calculer V final pour ce batch (ε0 V1)
 			# V = (1 - K^n) * V_interpole + K^n * V_calc
 			if n == 1:
 				V = (1 - K) * V_interpole + K * V_calc
@@ -410,6 +431,19 @@ def interpolate_nodata_hybrid(
 				K_power = K ** abs(n)
 				denom = ((1 - K) ** abs(n)) + K_power
 				V = ((1 - K) * V_interpole + K_power * V_calc) / denom
+
+			# V2a: pénalité distance + plafond
+			# ε = min(ε0 + α·d·Δ, λ·V_calc)
+			if use_ramp:
+				penalty = (
+					float(hole_alpha)
+					* distances_to_border.astype(np.float32)
+					* float(pixel_size)
+				)
+				V = V + penalty
+				cap = float(hole_lambda) * float(V_calc)
+				if np.isfinite(cap) and cap > 0:
+					V = np.minimum(V, cap)
 			
 			# Mettre à jour le résultat
 			for k, coord in enumerate(batch_coords):
