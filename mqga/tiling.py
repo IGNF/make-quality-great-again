@@ -11,6 +11,7 @@ from tqdm import tqdm
 from mqga.io_raster import crop_tile
 from mqga.quality_mask import (
 	DEFAULT_MIN_VALID,
+	DEFAULT_MIN_VALID_PCT,
 	create_negative_image,
 	diff_2_mask_quality,
 )
@@ -88,7 +89,8 @@ def init_worker():
 #################################################################################################### 
 def DoParallel(
 	RepTra, NbreDalleX, NbreDalleY, dl, no_data, percentile, iNbreCPU,
-	stat="mad", mad_k=2.44, bias=0.0, min_valid=DEFAULT_MIN_VALID,
+	stat="mad", mad_k=2.44, bias=0.0,
+	min_valid=DEFAULT_MIN_VALID, min_valid_pct=DEFAULT_MIN_VALID_PCT,
 ):
 		
 	tasks = []
@@ -108,7 +110,7 @@ def DoParallel(
 			#
 			args=(
 				chem_in_dalle_NEG, chem_out_dalle, dl, no_data, percentile,
-				stat, mad_k, bias, min_valid,
+				stat, mad_k, bias, min_valid, min_valid_pct,
 			)
 			tasks.append(args)
 

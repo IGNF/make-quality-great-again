@@ -25,7 +25,12 @@ from mqga.decrochage import (
 	apply_mask_as_nodata,
 	detect_decrochage,
 )
-from mqga.quality_mask import DEFAULT_MAD_K, DEFAULT_MIN_VALID
+from mqga.quality_mask import (
+	DEFAULT_MAD_K,
+	DEFAULT_MIN_VALID,
+	DEFAULT_MIN_VALID_PCT,
+	resolve_min_valid,
+)
 
 LOG_FORMAT = "{time:YYYY-MM-DD HH:mm:ss} | {level:<7} | {message}"
 
@@ -76,9 +81,16 @@ Un fichier de log est écrit à côté de --out (même nom, extension .log).
 	parser.add_argument(
 		"--min-valid", type=int, default=DEFAULT_MIN_VALID,
 		help=(
-			f"Effectif minimal de pixels négatifs valides dans la fenêtre locale "
-			f"(STANAG / historique filter_stats). Sous ce seuil → NoData "
+			f"Plancher absolu d'effectif (STANAG 2215 / historique). "
+			f"Seuil effectif = max(min-valid, min-valid-pct%% de la fenêtre) "
 			f"[default: {DEFAULT_MIN_VALID}]"
+		),
+	)
+	parser.add_argument(
+		"--min-valid-pct", type=float, default=DEFAULT_MIN_VALID_PCT,
+		help=(
+			f"Taux minimal (%%) de pixels négatifs valides dans la fenêtre "
+			f"(0 = désactive la contrainte relative) [default: {DEFAULT_MIN_VALID_PCT}]"
 		),
 	)
 	parser.add_argument(
@@ -173,6 +185,10 @@ def _validate_args(args):
 		errors.append(f"--bias doit être >= 0, reçu: {args.bias}")
 	if args.min_valid < 1:
 		errors.append(f"--min-valid doit être >= 1, reçu: {args.min_valid}")
+	if args.min_valid_pct < 0 or args.min_valid_pct > 100:
+		errors.append(
+			f"--min-valid-pct doit être dans [0, 100], reçu: {args.min_valid_pct}"
+		)
 	if args.tile <= 0:
 		errors.append(f"--tile doit être > 0, reçu: {args.tile}")
 	if args.pad < 0:
@@ -240,17 +256,24 @@ def main(argv=None):
 		logger.info("MNS: {}", args.mns)
 		logger.info("MNT: {}", args.mnt)
 		logger.info("OUT: {}", args.out)
+		n_required, win_side, win_area = resolve_min_valid(
+			args.demiwinl, min_valid=args.min_valid, min_valid_pct=args.min_valid_pct,
+		)
 		logger.debug(
-			"Params: stat={}, per={}, mad_k={}, bias={}, min_valid={}, tile={}, pad={}, cpu={}, "
-			"interp={}, demiwinl={}, winavg={}, decrochage={}, seuilZ={}, seuilV={}, seuilSTD={}, "
-			"morph_radius={}",
-			args.stat, args.per, args.mad_k, args.bias, args.min_valid, args.tile, args.pad,
-			args.cpu, args.interp, args.demiwinl, args.winavg, args.decrochage, args.seuilZ,
-			args.seuilV, args.seuilSTD, args.morph_radius,
+			"Params: stat={}, per={}, mad_k={}, bias={}, min_valid={}, min_valid_pct={}, "
+			"tile={}, pad={}, cpu={}, interp={}, demiwinl={}, winavg={}, decrochage={}, "
+			"seuilZ={}, seuilV={}, seuilSTD={}, morph_radius={}",
+			args.stat, args.per, args.mad_k, args.bias, args.min_valid, args.min_valid_pct,
+			args.tile, args.pad, args.cpu, args.interp, args.demiwinl, args.winavg,
+			args.decrochage, args.seuilZ, args.seuilV, args.seuilSTD, args.morph_radius,
 		)
 		logger.info(
-			"Statistique qualité: {} (mad-k={}, bias={}, min-valid={})",
-			args.stat, args.mad_k, args.bias, args.min_valid,
+			"Statistique qualité: {} (mad-k={}, bias={}, min-valid={}, min-valid-pct={}%)",
+			args.stat, args.mad_k, args.bias, args.min_valid, args.min_valid_pct,
+		)
+		logger.info(
+			"Seuil effectif min-valid: {} (fenêtre {}x{}={}, abs={}, pct={}%)",
+			n_required, win_side, win_side, win_area, args.min_valid, args.min_valid_pct,
 		)
 
 		chem_mns = args.mns
@@ -319,7 +342,7 @@ def main(argv=None):
 			RepTra, tiles.nbre_dalle_x, tiles.nbre_dalle_y,
 			dl, no_data, percentile, iNbreCPU,
 			stat=args.stat, mad_k=args.mad_k, bias=args.bias,
-			min_valid=args.min_valid,
+			min_valid=args.min_valid, min_valid_pct=args.min_valid_pct,
 		)
 
 		chem_out_tmp = chem_out.replace('.tif', '_tmp.tif')

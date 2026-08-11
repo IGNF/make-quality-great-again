@@ -116,7 +116,8 @@ sont mises en **NoData** dans la carte de précision, et exportées en shapefile
 - `--stat` : `mad` (défaut) ou `percentile` — stats sur la partie négative de MNS−MNT
 - `--mad-k` : facteur \(k\) dans \(\varepsilon = |b| + k\cdot\mathrm{MAD}\) (défaut: `2.44`)
 - `--bias` : biais systématique \(|b|\) en mètres ajouté à ε (défaut: `0`)
-- `--min-valid` : effectif minimal de pixels négatifs valides dans la fenêtre (STANAG / historique `167`) ; sous ce seuil → NoData
+- `--min-valid` : plancher absolu d'effectif (STANAG 2215 / historique `167`)
+- `--min-valid-pct` : taux minimal (%) de négatifs valides dans la fenêtre (défaut: `10`) ; seuil effectif = `max(min-valid, ceil(pct/100 × fenêtre²))` ; sous ce seuil → NoData
 - `--per` : Percentile local si `--stat percentile` (défaut: `0.05`)
 - `--demiwinl` : Demie-taille en ligne de la fenêtre d'analyse (défaut: `50`)
 - `--demiwinc` : Demie-taille en colonne de la fenêtre d'analyse (défaut: `50`)

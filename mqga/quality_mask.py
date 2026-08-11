@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Calcul du masque de qualité (percentile local ou MAD)."""
+import math
+
 import numpy as np
 import rasterio
 from scipy.ndimage import generic_filter
@@ -13,10 +15,28 @@ from mqga.io_raster import (
 # σ ≈ 1.4826·MAD ; LE90 ≈ 1.645·σ → ε ≈ 2.44·MAD
 DEFAULT_MAD_K = 2.44
 
-# Effectif minimal de pixels négatifs valides dans la fenêtre locale
-# (STANAG / historique gs2_mnt_mq_local.filter_stats size=167).
-# En dessous → NoData (la statistique n'est pas considérée fiable).
+# Effectif minimal absolu (STANAG 2215 / historique filter_stats size=167).
 DEFAULT_MIN_VALID = 167
+
+# Taux minimal de pixels négatifs valides dans la fenêtre (%).
+# Seuil effectif = max(DEFAULT_MIN_VALID, ceil(pct/100 * fenêtre²)).
+DEFAULT_MIN_VALID_PCT = 10.0
+
+
+def resolve_min_valid(dl, min_valid=DEFAULT_MIN_VALID, min_valid_pct=DEFAULT_MIN_VALID_PCT):
+	"""
+	n_required = max(min_valid, ceil(min_valid_pct/100 * (2*dl+1)²)).
+
+	Returns:
+		(n_required, window_side, window_area)
+	"""
+	side = 2 * int(dl) + 1
+	area = side * side
+	from_pct = 0
+	if min_valid_pct and float(min_valid_pct) > 0:
+		from_pct = int(math.ceil(float(min_valid_pct) / 100.0 * area))
+	n_required = max(int(min_valid), from_pct)
+	return n_required, side, area
 
 
 def calculate_cdf_percent(pixel_array, percentile, no_data=-9999, min_valid=DEFAULT_MIN_VALID):
@@ -69,18 +89,19 @@ def _apply_additive_bias(result, bias, no_data, stat):
 
 def process_image(
 	image, dl, no_data, percentile, stat="mad", mad_k=DEFAULT_MAD_K, bias=0.0,
-	min_valid=DEFAULT_MIN_VALID,
+	min_valid=DEFAULT_MIN_VALID, min_valid_pct=DEFAULT_MIN_VALID_PCT,
 ):
+	n_required, _, _ = resolve_min_valid(dl, min_valid=min_valid, min_valid_pct=min_valid_pct)
 	# Pad image to handle the borders
 	padded_image = np.pad(image, dl, mode='constant', constant_values=no_data)
 	# Use generic_filter from scipy.ndimage to apply the function over a local window
 	if stat == "mad":
 		fn = lambda x: calculate_mad_le90(
-			x, mad_k=mad_k, no_data=no_data, min_valid=min_valid,
+			x, mad_k=mad_k, no_data=no_data, min_valid=n_required,
 		)
 	else:
 		fn = lambda x: calculate_cdf_percent(
-			x, percentile, no_data=no_data, min_valid=min_valid,
+			x, percentile, no_data=no_data, min_valid=n_required,
 		)
 	result = generic_filter(
 		padded_image,
@@ -95,7 +116,8 @@ def process_image(
 
 
 def diff_2_mask_quality(args):
-	# compat: 5 (ancien) / 7 (stat+mad_k) / 8 (+bias) / 9 (+min_valid)
+	# compat: 5 / 7 / 8 / 9 (+min_valid) / 10 (+min_valid_pct)
+	min_valid_pct = DEFAULT_MIN_VALID_PCT
 	if len(args) == 5:
 		chem_in, chem_out, dl, no_data, percentile = args
 		stat, mad_k, bias = "percentile", DEFAULT_MAD_K, 0.0
@@ -107,12 +129,17 @@ def diff_2_mask_quality(args):
 	elif len(args) == 8:
 		chem_in, chem_out, dl, no_data, percentile, stat, mad_k, bias = args
 		min_valid = DEFAULT_MIN_VALID
-	else:
+	elif len(args) == 9:
 		chem_in, chem_out, dl, no_data, percentile, stat, mad_k, bias, min_valid = args
+	else:
+		(
+			chem_in, chem_out, dl, no_data, percentile,
+			stat, mad_k, bias, min_valid, min_valid_pct,
+		) = args
 	data_in = read_as_2D_float(chem_in, no_data)
 	result = process_image(
 		data_in, dl, no_data, percentile, stat=stat, mad_k=mad_k, bias=bias,
-		min_valid=min_valid,
+		min_valid=min_valid, min_valid_pct=min_valid_pct,
 	)
 	save_ABSOLUTE_image_with_same_geometry(
 		result, chem_out, chem_in, no_data=no_data
