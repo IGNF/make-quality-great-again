@@ -95,7 +95,7 @@ python3 make_quality_great_again.py \
 ```
 
 Les zones où le MNT semble décrocher (MNS ≫ MNT, après seuil Z / morpho / volume / STD)
-sont mises en **NoData** dans la carte de précision, et exportées en shapefile
+sont mises en **NoData** dans la carte de précision et exportées en shapefile
 `masque_qualite_zones_decrochage.shp` à côté de `--out`.
 
 ---
