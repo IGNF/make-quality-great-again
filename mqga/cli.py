@@ -40,7 +40,7 @@ LOG_FORMAT = "{time:YYYY-MM-DD HH:mm:ss} | {level:<7} | {message}"
 def _build_parser():
 	parser = argparse.ArgumentParser(
 		description="""MAKE QUALITY GREAT AGAIN - Module open source d'autoqualification de MNT (GEMAUT) - Délivre une carte de précision associée au MNT 
-Auteur: Nicolas Champion""",
+Auteur: Nicolas Champion """,
 		epilog="""EXEMPLE:
 
   python3 make_quality_great_again.py \\
