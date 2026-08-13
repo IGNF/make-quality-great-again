@@ -39,13 +39,13 @@ LOG_FORMAT = "{time:YYYY-MM-DD HH:mm:ss} | {level:<7} | {message}"
 
 def _build_parser():
 	parser = argparse.ArgumentParser(
-		description="""MAKE QUALITY GREAT AGAIN - Masque de qualité à partir d'un MNS et d'un MNT
+		description="""MAKE QUALITY GREAT AGAIN - Module open source d'autoqualification de MNT (GEMAUT) - Délivre une carte de précision associée au MNT 
 Auteur: Nicolas Champion""",
 		epilog="""EXEMPLE:
 
   python3 make_quality_great_again.py \\
-    --mns /chemin/mns.tif \\
     --mnt /chemin/mnt.tif \\
+    --mns /chemin/mns.tif \\
     --out /chemin/masque_qualite.tif \\
     --RepTra /chemin/tmp_mqga \\
     --cpu 8 \\
@@ -53,126 +53,160 @@ Auteur: Nicolas Champion""",
     --decrochage \\
     --clean
 
-Le MNT est rééchantillonné sur la grille du MNS si les résolutions diffèrent.
+Par défaut la carte est calculée sur la grille du MNS.
+Avec --reso, MNS et MNT sont rééchantillonnés sur une grille de travail (m).
 Avec --decrochage, les zones MNS ≫ MNT suspectes sont mises en NoData
 dans la carte de précision et exportées en shapefile à côté de --out.
 Un fichier de log est écrit à côté de --out (même nom, extension .log).
 """,
 		formatter_class=argparse.RawTextHelpFormatter,
 	)
-	parser.add_argument("--mns", required=True, type=str, help="Chemin vers le MNS (DSM)")
-	parser.add_argument("--mnt", required=True, type=str, help="Chemin vers le MNT (DTM)")
-	parser.add_argument("--out", "-out", required=True, type=str, help="Masque de qualité en sortie")
-	parser.add_argument(
+
+	# --- Options obligatoires ---
+	g_req = parser.add_argument_group("Options obligatoires")
+	g_req.add_argument("--mnt", required=True, type=str, help="Chemin vers le MNT (DTM)")
+	g_req.add_argument("--mns", required=True, type=str, help="Chemin vers le MNS (DSM)")
+	g_req.add_argument("--out", "-out", required=True, type=str, help="Masque de qualité en sortie")
+	g_req.add_argument(
+		"--RepTra", "-RepTra", required=True, type=str,
+		help="Répertoire de travail (fichiers temporaires)",
+	)
+	g_req.add_argument("--cpu", "-cpu", required=True, type=int, help="Nombre de CPU disponibles")
+
+	# --- Options générales ---
+	g_gen = parser.add_argument_group("Options générales")
+	g_gen.add_argument(
 		"--reso", type=float, default=None,
 		help=(
-			"Résolution de travail en mètres (ex. 4). "
-			"Impose une grille (emprise/CRS du MNS, pixels carrés). "
-			"Absent = grille native du MNS."
+			"Résolution de travail en mètres (ex. 1 ou 4).\n"
+			"Si absent = Résolution du MNS en entrée."
 		),
 	)
-	parser.add_argument("--no", "-no", type=int, default=-9999, help="Valeur de NoData")
-	parser.add_argument(
-		"--per", "-per", type=float, default=0.05,
-		help="Percentile local si --stat percentile (défaut: 0.05)",
-	)
-	parser.add_argument(
-		"--stat", type=str, default="mad", choices=["mad", "percentile"],
-		help="Statistique locale sur la partie négative: mad (défaut) ou percentile",
-	)
-	parser.add_argument(
-		"--mad-k", type=float, default=DEFAULT_MAD_K,
-		help=f"Facteur k dans ε = |b| + k·MAD (défaut: {DEFAULT_MAD_K} ≈ LE90 gaussienne)",
-	)
-	parser.add_argument(
-		"--bias", type=float, default=0.0,
-		help="Biais systématique |b| ajouté à ε (m), défaut: 0 → ε = |b| + k·MAD",
-	)
-	parser.add_argument(
-		"--min-valid", type=int, default=DEFAULT_MIN_VALID,
-		help=(
-			f"Plancher absolu d'effectif (STANAG 2215 / historique). "
-			f"Seuil effectif = max(min-valid, min-valid-pct%% de la fenêtre) "
-			f"[default: {DEFAULT_MIN_VALID}]"
-		),
-	)
-	parser.add_argument(
-		"--min-valid-pct", type=float, default=DEFAULT_MIN_VALID_PCT,
-		help=(
-			f"Taux minimal (%%) de pixels négatifs valides dans la fenêtre "
-			f"(0 = désactive la contrainte relative) [default: {DEFAULT_MIN_VALID_PCT}]"
-		),
-	)
-	parser.add_argument(
-		"--demiwinl", "-demiwinl", type=int, default=50,
-		help="Demie-taille en ligne de la fenêtre d'analyse",
-	)
-	parser.add_argument(
-		"--demiwinc", "-demiwinc", type=int, default=50,
-		help="Demie-taille en colonne de la fenêtre d'analyse",
-	)
-	parser.add_argument("--tile", "-tile", type=int, default=500, help="Taille de la tuile")
-	parser.add_argument("--pad", "-pad", type=int, default=50, help="Recouvrement entre tuiles")
-	parser.add_argument("--RepTra", "-RepTra", required=True, type=str, help="Répertoire de travail")
-	parser.add_argument("--cpu", "-cpu", required=True, type=int, help="Nombre de CPU disponibles")
-	parser.add_argument(
-		"--winavg", "-winavg", type=int, default=50,
-		help="Taille de la fenêtre glissante pour la moyenne (défaut: 50)",
-	)
-	parser.add_argument(
-		"--interp", "-interp", type=str, default="hybrid",
-		choices=["hybrid", "idw"],
-		help="Méthode d'interpolation des NoData: hybrid (défaut) ou idw",
-	)
-	parser.add_argument(
-		"--hole-vcalc", type=str, default="p90",
-		choices=["min", "p90"],
-		help="Constante de trou en hybrid: p90=P90(ε_bord) (défaut) ou min (historique)",
-	)
-	parser.add_argument(
-		"--hole-alpha", type=float, default=DEFAULT_HOLE_ALPHA,
-		help=(
-			f"V2a hybrid: pénalité α·d·Δ (m d'incertitude par m de distance au bord). "
-			f"0 = rampe off (V1) [default: {DEFAULT_HOLE_ALPHA}]"
-		),
-	)
-	parser.add_argument(
-		"--hole-lambda", type=float, default=DEFAULT_HOLE_LAMBDA,
-		help=(
-			f"V2a hybrid: plafond ε ≤ λ·V_calc (ignoré si --hole-alpha=0) "
-			f"[default: {DEFAULT_HOLE_LAMBDA}]"
-		),
-	)
-	parser.add_argument(
+	g_gen.add_argument("--no", "-no", type=int, default=-9999, help="Valeur de NoData (défaut: -9999)")
+	g_gen.add_argument(
 		"--clean", "-clean", action="store_true",
-		help="Supprimer le contenu du répertoire temporaire s'il existe déjà",
+		help="Vider le répertoire temporaire s'il existe déjà",
 	)
-	parser.add_argument(
+	g_gen.add_argument(
 		"--verbose", action="store_true",
 		help="Activer le niveau DEBUG sur la console",
 	)
-	parser.add_argument(
-		"--decrochage", action="store_true",
-		help="Détecter les zones de décrochage MNT (MNS ≫ MNT): NoData + shapefile",
-	)
-	parser.add_argument(
-		"--seuilZ", type=float, default=DEFAULT_SEUIL_Z,
-		help=f"Seuil Z positif sur MNS-MNT pour le décrochage (m) [default: {DEFAULT_SEUIL_Z}]",
-	)
-	parser.add_argument(
-		"--seuilV", type=float, default=DEFAULT_SEUIL_V,
-		help=f"Seuil de volume (COUNT*MEAN) des zones de décrochage [default: {DEFAULT_SEUIL_V}]",
-	)
-	parser.add_argument(
-		"--seuilSTD", type=float, default=DEFAULT_SEUIL_STD,
-		help=f"Seuil d'écart-type des zones de décrochage (m) [default: {DEFAULT_SEUIL_STD}]",
-	)
-	parser.add_argument(
-		"--morph-radius", type=int, default=DEFAULT_MORPH_RADIUS,
-		help=f"Rayon (pixels) de l'opening morphologique décrochage [default: {DEFAULT_MORPH_RADIUS}]",
-	)
-	return parser
 
+	# --- Analyse locale MNS-MNT ---
+	g_stat = parser.add_argument_group(
+		"Analyse MNS-MNT (partie négative) - calcul de ε_stat = statistique locale"
+	)
+	g_stat.add_argument(
+		"--stat", type=str, default="percentile", choices=["mad", "percentile"],
+		help=(
+			"Statistique locale sur la partie négative de MNS-MNT:\n"
+			"percentile (défaut) ou mad"
+		),
+	)
+	g_stat.add_argument(
+		"--per", "-per", type=float, default=0.10,
+		help="Percentile local si --stat percentile (défaut: 0.10 ; ignoré si --stat mad)",
+	)
+	g_stat.add_argument(
+		"--mad-k", type=float, default=DEFAULT_MAD_K,
+		help=(
+			f"Facteur k dans ε = |b| + k·MAD si --stat mad "
+			f"(défaut: {DEFAULT_MAD_K} ≈ LE90 ; ignoré si --stat percentile)"
+		),
+	)
+	g_stat.add_argument(
+		"--bias", type=float, default=0.0,
+		help="Biais |b| ajouté à ε (m) : ε ← |b| + ε_stat (défaut: 0)",
+	)
+	g_stat.add_argument(
+		"--demiwin", "-demiwin", type=int, default=50,
+		help="Demi-taille (pixels) de la fenêtre d'analyse (défaut: 50 → fenêtre ~101×101)",
+	)
+	g_stat.add_argument(
+		"--min-valid", type=int, default=DEFAULT_MIN_VALID,
+		help=(
+			f"Plancher absolu d'effectif (STANAG).\n"
+			f"Seuil effectif = max(min-valid, min-valid-pct%% de la fenêtre) "
+			f"[défaut: {DEFAULT_MIN_VALID}]"
+		),
+	)
+	g_stat.add_argument(
+		"--min-valid-pct", type=float, default=DEFAULT_MIN_VALID_PCT,
+		help=(
+			f"Taux minimal (%%) de pixels négatifs (MNS-MNT) valides dans la fenêtre.\n"
+			f"0 = désactive la contrainte relative [défaut: {DEFAULT_MIN_VALID_PCT}]"
+		),
+	)
+
+	# --- Tuiles ---
+	g_tile = parser.add_argument_group("Découpage en tuiles")
+	g_tile.add_argument(
+		"--tile", "-tile", type=int, default=500,
+		help="Taille d'une tuile en pixels (défaut: 500)",
+	)
+	g_tile.add_argument(
+		"--pad", "-pad", type=int, default=50,
+		help="Recouvrement entre tuiles en pixels (défaut: 50 ; doit être >= --demiwin)",
+	)
+
+	# --- Interpolation ---
+	g_interp = parser.add_argument_group("Interpolation des NoData (trous)")
+	g_interp.add_argument(
+		"--interp", "-interp", type=str, default="hybrid",
+		choices=["hybrid", "idw"],
+		help="Méthode d'interpolation: hybrid (défaut) ou idw",
+	)
+	g_interp.add_argument(
+		"--hole-vcalc", type=str, default="p90",
+		choices=["min", "p90"],
+		help="Ancre de trou en hybrid: p90=P90(ε_bord) (défaut) ou min (historique)",
+	)
+	g_interp.add_argument(
+		"--hole-alpha", type=float, default=DEFAULT_HOLE_ALPHA,
+		help=(
+			f"V2a: pénalité α·d·Δ (m d'incertitude par m de distance au bord).\n"
+			f"0 = rampe off (comportement V1) [défaut: {DEFAULT_HOLE_ALPHA}]"
+		),
+	)
+	g_interp.add_argument(
+		"--hole-lambda", type=float, default=DEFAULT_HOLE_LAMBDA,
+		help=(
+			f"V2a: plafond ε ≤ λ·V_calc (ignoré si --hole-alpha=0) "
+			f"[défaut: {DEFAULT_HOLE_LAMBDA}]"
+		),
+	)
+
+	# --- Lissage ---
+	g_smooth = parser.add_argument_group("Lissage final")
+	g_smooth.add_argument(
+		"--winavg", "-winavg", type=int, default=50,
+		help="Taille (pixels) de la moyenne glissante finale (défaut: 50)",
+	)
+
+	# --- Décrochage ---
+	g_dec = parser.add_argument_group("Détection des zones de décrochage MNT")
+	g_dec.add_argument(
+		"--decrochage", action="store_true",
+		help="Activer la détection (MNS ≫ MNT): NoData + shapefile à côté de --out",
+	)
+	g_dec.add_argument(
+		"--seuilZ", type=float, default=DEFAULT_SEUIL_Z,
+		help=f"Seuil Z positif sur MNS-MNT (m) [défaut: {DEFAULT_SEUIL_Z}]",
+	)
+	g_dec.add_argument(
+		"--seuilV", type=float, default=DEFAULT_SEUIL_V,
+		help=f"Seuil de volume COUNT×MEAN [défaut: {DEFAULT_SEUIL_V}]",
+	)
+	g_dec.add_argument(
+		"--seuilSTD", type=float, default=DEFAULT_SEUIL_STD,
+		help=f"Seuil d'écart-type (m) [défaut: {DEFAULT_SEUIL_STD}]",
+	)
+	g_dec.add_argument(
+		"--morph-radius", type=int, default=DEFAULT_MORPH_RADIUS,
+		help=f"Rayon (pixels) de l'opening morphologique [défaut: {DEFAULT_MORPH_RADIUS}]",
+	)
+
+	return parser
 
 def _setup_logging(out_path, verbose=False):
 	"""Configure loguru: console + fichier à côté de --out."""
@@ -223,8 +257,8 @@ def _validate_args(args):
 		errors.append(f"--pad ({args.pad}) doit être strictement inférieur à --tile ({args.tile})")
 	if args.cpu < 1:
 		errors.append(f"--cpu doit être >= 1, reçu: {args.cpu}")
-	if args.demiwinl < 1 or args.demiwinc < 1:
-		errors.append("--demiwinl et --demiwinc doivent être >= 1")
+	if args.demiwin < 1:
+		errors.append("--demiwin doit être >= 1")
 	if args.winavg < 1:
 		errors.append(f"--winavg doit être >= 1, reçu: {args.winavg}")
 	if args.seuilZ <= 0:
@@ -291,14 +325,14 @@ def main(argv=None):
 		logger.info("MNT: {}", args.mnt)
 		logger.info("OUT: {}", args.out)
 		n_required, win_side, win_area = resolve_min_valid(
-			args.demiwinl, min_valid=args.min_valid, min_valid_pct=args.min_valid_pct,
+			args.demiwin, min_valid=args.min_valid, min_valid_pct=args.min_valid_pct,
 		)
 		logger.debug(
 			"Params: stat={}, per={}, mad_k={}, bias={}, min_valid={}, min_valid_pct={}, "
-			"tile={}, pad={}, cpu={}, interp={}, demiwinl={}, winavg={}, decrochage={}, "
+			"tile={}, pad={}, cpu={}, interp={}, demiwin={}, winavg={}, decrochage={}, "
 			"seuilZ={}, seuilV={}, seuilSTD={}, morph_radius={}",
 			args.stat, args.per, args.mad_k, args.bias, args.min_valid, args.min_valid_pct,
-			args.tile, args.pad, args.cpu, args.interp, args.demiwinl, args.winavg,
+			args.tile, args.pad, args.cpu, args.interp, args.demiwin, args.winavg,
 			args.decrochage, args.seuilZ, args.seuilV, args.seuilSTD, args.morph_radius,
 		)
 		logger.info(
@@ -320,7 +354,7 @@ def main(argv=None):
 		iTailleparcelle = args.tile
 		iTailleRecouvrement = args.pad
 		winavg_size = args.winavg
-		dl = args.demiwinl
+		dl = args.demiwin
 
 		init_rep_tra(RepTra, clean=args.clean)
 

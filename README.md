@@ -120,8 +120,7 @@ sont mises en **NoData** dans la carte de précision et exportées en shapefile
 - `--min-valid` : plancher absolu d'effectif (STANAG 2215 / historique `167`)
 - `--min-valid-pct` : taux minimal (%) de négatifs valides dans la fenêtre (défaut: `10`) ; seuil effectif = `max(min-valid, ceil(pct/100 × fenêtre²))` ; sous ce seuil → NoData
 - `--per` : Percentile local si `--stat percentile` (défaut: `0.05`)
-- `--demiwinl` : Demie-taille en ligne de la fenêtre d'analyse (défaut: `50`)
-- `--demiwinc` : Demie-taille en colonne de la fenêtre d'analyse (défaut: `50`)
+- `--demiwin` : Demie-taille de la fenêtre d'analyse (carrée ; défaut: `50` → fenêtre `2*demiwin+1`)
 - `--tile` : Taille de la tuile (défaut: `500`)
 - `--pad` : Recouvrement entre tuiles (défaut: `50`)
 - `--winavg` : Fenêtre de moyenne glissante finale (défaut: `50`)
