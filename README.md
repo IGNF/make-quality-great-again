@@ -133,7 +133,7 @@ Alignés sur `python3 make_quality_great_again.py --help`.
 ### Zones de non garantie (décrochage MNT)
 
 - `--decrochage` : détecter les zones où le MNT semble décrocher (MNS ≫ MNT) ; NoData dans la carte + shapefile à côté de `--out`
-- `--seuilZ` : écart minimal MNS−MNT (m) pour candidater une zone (défaut: `10`)
+- `--seuilZ` : écart minimal MNS−MNT (m) pour qu'une une zone soit candidate (défaut: `10`)
 - `--seuilV` : volume minimal d'une zone (nb pixels × écart moyen) pour la retenir (défaut: `100000`)
 - `--seuilSTD` : écart-type minimal (m) de MNS−MNT dans la zone pour la retenir (défaut: `3`)
 - `--morph-radius` : nettoyage morphologique (rayon en pixels) : enlève le bruit / petites taches (défaut: `5`)
