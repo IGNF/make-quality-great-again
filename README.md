@@ -67,19 +67,6 @@ python3 make_quality_great_again.py \
     --clean
 ```
 
-#### **Mode verbeux (DEBUG console)**
-
-```bash
-python3 make_quality_great_again.py \
-    --mns /chemin/vers/MNS.tif \
-    --mnt /chemin/vers/MNT.tif \
-    --out /chemin/vers/masque_qualite.tif \
-    --RepTra /chemin/vers/tmp_mqga \
-    --cpu 8 \
-    --interp hybrid \
-    --verbose
-```
-
 #### **Avec détection de décrochage MNT**
 
 ```bash
@@ -94,8 +81,7 @@ python3 make_quality_great_again.py \
     --clean
 ```
 
-Les zones où le MNT semble décrocher (MNS ≫ MNT, après seuil Z / morpho / volume / STD)
-sont mises en **NoData** dans la carte de précision et exportées en shapefile
+Les zones où le MNT semble décrocher sont mises en **NoData** dans la carte de précision et exportées en shapefile
 `masque_qualite_zones_decrochage.shp` à côté de `--out`.
 
 ---
