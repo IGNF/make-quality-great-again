@@ -124,15 +124,15 @@ Alignés sur `python3 make_quality_great_again.py --help`.
 - `--tile` : taille d'une tuile en pixels (défaut: `500`)
 - `--pad` : recouvrement entre tuiles en pixels (défaut: `50` ; doit être `>= --demiwin`)
 
-### Calcul de ε_stat (partie négative de MNS−MNT)
+### Calcul de ε_stat (basée sur la partie négative de l'istogramme des différences MNS−MNT Cf. Papier RFPT)
 
 - `--bias` : biais `|b|` ajouté à ε_stat : `ε_stat ← |b| + ε_stat` (défaut: `0`)
-- `--stat` : `percentile` (défaut) ou `mad`
-- `--per` : percentile local si `--stat percentile` (défaut: `0.10` ; ignoré si `mad`)
+- `--stat` : ε_stat calculée par `percentile` (défaut) ou `mad` sur une fenêtre locale 
+- `--per` : (défaut: `0.10` ; ignoré si `mad`)
 - `--mad-k` : facteur `k` dans `ε_stat = |b| + k·MAD` si `--stat mad` (défaut: `2.44` ≈ LE90 ; ignoré si `percentile`)
 - `--demiwin` : demi-taille (pixels) de la fenêtre d'analyse (défaut: `50`)
 - `--min-valid` : effectif minimal pour calculer la stat [STANAG] ; seuil effectif = `max(min-valid, min-valid-pct% de la fenêtre)` (défaut: `167`)
-- `--min-valid-pct` : taux minimal (%) de pixels dans la fenêtre à la fois négatifs (MNS−MNT) et valides (`!=` NoData) (défaut: `10`) ; `0` = désactive l'option
+- `--min-valid-pct` : taux minimal (%) de pixels valides dans la fenêtre d'analyse; valide = à la fois négatifs dans la différence MNS−MNT `!=` NoData (défaut: `10`) ; `0` = désactive l'option
 
 ### Interpolation des NoData (trous)
 
