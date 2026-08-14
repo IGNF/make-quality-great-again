@@ -212,39 +212,36 @@ def interpolate_nodata_idw_vectorized(
 	logger.info("Interpolation terminée (IDW vectorisé): {} pixels nodata interpolés.", total_nodata_interpolated)
 	_reapply_protect_mask(chem_out, protect_mask_path, no_data=no_data)
 
-# V2a — pénalité distance + plafond (hybrid)
-# pénalité = α · d · Δ ; ε = min(ε0 + pénalité, λ · V_calc) ; α=0 → comportement V1
+# Rampe distance + plafond (hybrid)
+# ε0 = mélange IDW(bord) / P90(ε_bord) ; ε = min(ε0 + α·d·Δ, λ·P90) ; α=0 → sans rampe
 DEFAULT_HOLE_ALPHA = 0.01   # m d'incertitude par mètre de distance au bord
-DEFAULT_HOLE_LAMBDA = 1.5   # plafond ε ≤ λ · V_calc
+DEFAULT_HOLE_LAMBDA = 1.5   # plafond ε ≤ λ · P90(ε_bord)
 
 
 def interpolate_nodata_hybrid(
 	chem_in, chem_out, no_data=-9999,
-	connectivity=4, seuil_percent=50,
+	connectivity=4,
 	poids=1, rayon=50, n=1, block_size=2000,
 	protect_mask_path=None,
-	vcalc_mode="p90",
 	hole_alpha=DEFAULT_HOLE_ALPHA,
 	hole_lambda=DEFAULT_HOLE_LAMBDA,
 ):
 	"""
-	Interpole les pixels nodata avec la méthode hybride de xingng.
-	Combine interpolation locale sur les pixels de bord et constante statistique.
-	
+	Interpole les pixels nodata avec la méthode hybride.
+	Combine IDW local sur les pixels de bord et ancre P90(ε_bord) au centre.
+
 	Args:
 		chem_in: Chemin vers l'image d'entrée
 		chem_out: Chemin vers l'image de sortie
 		no_data: Valeur nodata
 		connectivity: Connexité (4 ou 8, par défaut 4)
-		seuil_percent: Pourcentage de valeurs minimales à exclure si vcalc_mode="min" (défaut 50)
 		poids: Puissance pour la pondération IDW (défaut 1 = linéaire)
 		rayon: Rayon de recherche pour l'interpolation locale (défaut 50)
 		n: Facteur de pondération entre interpolation et constante (défaut 1)
 		block_size: Taille des blocs pour le traitement (défaut 2000, non utilisé actuellement)
 		protect_mask_path: masque (non nul) exclus du fill et remis en nodata après
-		vcalc_mode: Constante de trou — "p90" = P90(ε_bord) (défaut), "min" = historique
-		hole_alpha: V2a — pénalité α·d·Δ (m/m) ; 0 = rampe off (V1 pur)
-		hole_lambda: V2a — plafond ε ≤ λ·V_calc (ignoré si hole_alpha=0)
+		hole_alpha: pente de rampe α·d·Δ (m/m) ; 0 = sans rampe
+		hole_lambda: plafond ε ≤ λ·P90(ε_bord) (ignoré si hole_alpha=0)
 	"""
 	# Supprimer le fichier de sortie
 	if os.path.exists(chem_out):
@@ -272,7 +269,7 @@ def interpolate_nodata_hybrid(
 	with rasterio.open(chem_in, 'r') as src:
 		metadata = src.meta.copy()
 		height, width = src.height, src.width
-		# Résolution terrain (m/px) pour la pénalité V2a
+		# Résolution terrain (m/px) pour la pénalité de rampe
 		pixel_size = float(abs(src.res[0])) if src.res[0] != 0 else float(abs(src.transform.a))
 		
 		# Lire toute l'image (nécessaire pour identifier les trous connexes)
@@ -300,12 +297,14 @@ def interpolate_nodata_hybrid(
 	use_ramp = float(hole_alpha) > 0
 	if use_ramp:
 		logger.info(
-			"Interpolation hybride V2a: alpha={} m/m, lambda={}, Δ={:.6g} m/px "
-			"(ε = min(ε0 + α·d·Δ, λ·V_calc))",
+			"Interpolation hybride avec rampe: alpha={} m/m, lambda={}, Δ={:.6g} m/px "
+			"(ε = min(ε0 + α·d·Δ, λ·P90))",
 			hole_alpha, hole_lambda, pixel_size,
 		)
 	else:
-		logger.info("Interpolation hybride V2a: alpha=0 → rampe désactivée (comportement V1)")
+		logger.info(
+			"Interpolation hybride sans rampe: IDW au bord + P90(ε_bord) au centre"
+		)
 	
 	if not np.any(mask_to_fill):
 		with rasterio.open(chem_out, 'w', **metadata) as dst:
@@ -341,20 +340,8 @@ def interpolate_nodata_hybrid(
 			# print(f"  Attention: Trou {hole_id} n'a pas de pixels de bord, ignoré.")  # Désactivé pour ne garder que la barre de progression
 			continue
 		
-		# Calculer V_calc pour ce trou (ancre du centre)
-		# p90 (défaut): P90(ε_bord) — moins optimiste qu'un min, moins sensible qu'un max
-		# min: historique — exclure seuil% des plus faibles, puis minimum des restantes
-		if vcalc_mode == "min":
-			values_sorted = sorted(border_values)
-			n_exclude = int(len(values_sorted) * seuil_percent / 100)
-			if n_exclude >= len(values_sorted):
-				n_exclude = len(values_sorted) - 1
-			if n_exclude < 0:
-				n_exclude = 0
-			values_filtered = values_sorted[n_exclude:]
-			V_calc = min(values_filtered) if len(values_filtered) > 0 else values_sorted[-1]
-		else:
-			V_calc = float(np.percentile(np.asarray(border_values, dtype=np.float32), 90))
+		# Ancre du centre : P90 des ε de bord
+		V_calc = float(np.percentile(np.asarray(border_values, dtype=np.float32), 90))
 		
 		# Coordonnées des pixels de bord pour ce trou
 		border_coords = np.column_stack(np.where(border_mask))
@@ -417,7 +404,7 @@ def interpolate_nodata_hybrid(
 						# Interpolation IDW
 						V_interpole[np.where(mask_in_radius)[0][j]] = np.sum(weights * valid_values) / np.sum(weights)
 			
-			# Calculer V final pour ce batch (ε0 V1)
+			# ε0 : mélange IDW / P90 selon distance au bord
 			# V = (1 - K^n) * V_interpole + K^n * V_calc
 			if n == 1:
 				V = (1 - K) * V_interpole + K * V_calc
@@ -432,8 +419,7 @@ def interpolate_nodata_hybrid(
 				denom = ((1 - K) ** abs(n)) + K_power
 				V = ((1 - K) * V_interpole + K_power * V_calc) / denom
 
-			# V2a: pénalité distance + plafond
-			# ε = min(ε0 + α·d·Δ, λ·V_calc)
+			# Rampe optionnelle : ε = min(ε0 + α·d·Δ, λ·P90)
 			if use_ramp:
 				penalty = (
 					float(hole_alpha)

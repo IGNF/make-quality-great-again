@@ -126,9 +126,8 @@ sont mises en **NoData** dans la carte de précision et exportées en shapefile
 - `--winavg` : Fenêtre de moyenne glissante finale (défaut: `50`)
 - `--interp` : Méthode d'interpolation des NoData  
   (`hybrid` par défaut, ou `idw`)
-- `--hole-vcalc` : constante de trou en `hybrid` — `p90` (défaut) ou `min` (historique)
-- `--hole-alpha` : V2a — pénalité `α·d·Δ` (m/m de distance au bord) ; `0` = rampe off (V1) ; défaut `0.01`
-- `--hole-lambda` : V2a — plafond `ε ≤ λ·V_calc` ; défaut `1.5` (ignoré si `--hole-alpha=0`)
+- `--hole-alpha` : pente de la rampe `α·d·Δ` (m/m de distance au bord) ; pénalise plus on s'enfonce dans le trou ; `0` = sans rampe (IDW + P90 au centre) ; défaut `0.01`
+- `--hole-lambda` : plafond `ε ≤ λ·P90(ε_bord)` si rampe active ; défaut `1.5` (ignoré si `--hole-alpha=0`)
 - `--clean` : Vider le répertoire temporaire s'il existe déjà
 - `--verbose` : Activer le niveau DEBUG sur la console
 - `--decrochage` : activer la détection des zones de décrochage MNT
@@ -173,18 +172,18 @@ sont mises en **NoData** dans la carte de précision et exportées en shapefile
 ## 🩹 Interpolation hybride (`--interp hybrid`) — recommandée
 
 Inspirée de `xingng -FB:2:...` (IDW bord + constante au centre).  
-V1 : l’ancre de trou est `V_calc = P90(ε_bord)` au lieu du min filtré historique.  
-V2a : pénalité distance + plafond — `ε = min(ε0 + α·d·Δ, λ·V_calc)`.
+Sans rampe (`--hole-alpha 0`) : IDW au bord, `P90(ε_bord)` au centre.  
+Avec rampe (défaut) : `ε = min(ε0 + α·d·Δ, λ·P90)`.
 
 ### Principe
 
 1. Identification des **trous connexes** (zones NoData)
 2. Détection des **pixels de bord** (connexité 4)
 3. Pour chaque trou :
-   - calcul d'une constante `V_calc = P90(ε_bord)` (percentile 90 des valeurs de bord du trou) ; `--hole-vcalc {min,p90}` (défaut `p90`) permet de retrouver le mode historique `min`
+   - ancre `V_calc = P90(ε_bord)` (percentile 90 des valeurs de bord)
    - interpolation **IDW** locale sur les pixels de bord (rayon 50, poids 1)
    - combinaison selon la distance au bord : proche → IDW, centre → `V_calc` → `ε0`
-   - V2a : `ε = min(ε0 + α·d·Δ, λ·V_calc)` (`--hole-alpha`, `--hole-lambda` ; `α=0` → V1)
+   - si `--hole-alpha > 0` : `ε = min(ε0 + α·d·Δ, λ·P90)` (`--hole-lambda` plafonne)
 
 Cette méthode s'inspire de la méthode `xingng`: elle remplit bien les grands trous tout en restant raisonnablement dans son temps d'exécution.
 
