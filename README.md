@@ -102,39 +102,55 @@ sont mises en **NoData** dans la carte de précision et exportées en shapefile
 
 ## 🔧 Paramètres
 
-### Paramètres obligatoires
+Alignés sur `python3 make_quality_great_again.py --help`.
 
-- `--mns` : MNS d'entrée (DSM)
-- `--mnt` : MNT d'entrée (DTM)
-- `--reso` : résolution de travail en mètres (ex. `4`) ; impose une grille (emprise/CRS du MNS). Absent = grille native du MNS
-- `--out` : Masque de qualité en sortie
-- `--cpu` : Nombre de CPUs à utiliser
-- `--RepTra` : Répertoire de travail temporaire
+### Options obligatoires
 
-### Paramètres optionnels
+- `--mnt` : chemin vers le MNT (DTM)
+- `--mns` : chemin vers le MNS (DSM)
+- `--out` : masque de qualité / carte de précision en sortie
+- `--RepTra` : répertoire de travail (fichiers temporaires)
+- `--cpu` : nombre de CPU disponibles
 
-- `--no` : Valeur NoData (défaut: `-9999`)
-- `--stat` : `mad` (défaut) ou `percentile` — stats sur la partie négative de MNS−MNT
-- `--mad-k` : facteur \(k\) dans \(\varepsilon = |b| + k\cdot\mathrm{MAD}\) (défaut: `2.44`)
-- `--bias` : biais systématique \(|b|\) en mètres ajouté à ε (défaut: `0`)
-- `--min-valid` : plancher absolu d'effectif (STANAG 2215 / historique `167`)
-- `--min-valid-pct` : taux minimal (%) de négatifs valides dans la fenêtre (défaut: `10`) ; seuil effectif = `max(min-valid, ceil(pct/100 × fenêtre²))` ; sous ce seuil → NoData
-- `--per` : Percentile local si `--stat percentile` (défaut: `0.05`)
-- `--demiwin` : Demie-taille de la fenêtre d'analyse (carrée ; défaut: `50` → fenêtre `2*demiwin+1`)
-- `--tile` : Taille de la tuile (défaut: `500`)
-- `--pad` : Recouvrement entre tuiles (défaut: `50`)
-- `--winavg` : Fenêtre de moyenne glissante finale (défaut: `50`)
-- `--interp` : Méthode d'interpolation des NoData  
-  (`hybrid` par défaut, ou `idw`)
-- `--hole-alpha` : pente de la rampe `α·d·Δ` (m/m de distance au bord) ; pénalise plus on s'enfonce dans le trou ; `0` = sans rampe (IDW + P90 au centre) ; défaut `0.01`
-- `--hole-lambda` : plafond `ε ≤ λ·P90(ε_bord)` si rampe active ; défaut `1.5` (ignoré si `--hole-alpha=0`)
-- `--clean` : Vider le répertoire temporaire s'il existe déjà
-- `--verbose` : Activer le niveau DEBUG sur la console
-- `--decrochage` : activer la détection des zones de décrochage MNT
-- `--seuilZ` : seuil Z positif MNS−MNT (m), défaut `10`
-- `--seuilV` : seuil de volume `COUNT*MEAN`, défaut `100000`
-- `--seuilSTD` : seuil d'écart-type (m), défaut `3`
-- `--morph-radius` : rayon (px) de l'opening morphologique, défaut `5`
+### Options générales
+
+- `--reso` : résolution de travail en mètres (ex. `1` ou `4`) ; si absent = résolution du MNS
+- `--no` : valeur NoData (défaut: `-9999`)
+- `--clean` : vider le répertoire temporaire s'il existe déjà
+- `--verbose` : activer le niveau DEBUG sur la console
+
+### Découpage en tuiles
+
+- `--tile` : taille d'une tuile en pixels (défaut: `500`)
+- `--pad` : recouvrement entre tuiles en pixels (défaut: `50` ; doit être `>= --demiwin`)
+
+### Calcul de ε_stat (partie négative de MNS−MNT)
+
+- `--bias` : biais `|b|` ajouté à ε_stat : `ε_stat ← |b| + ε_stat` (défaut: `0`)
+- `--stat` : `percentile` (défaut) ou `mad`
+- `--per` : percentile local si `--stat percentile` (défaut: `0.10` ; ignoré si `mad`)
+- `--mad-k` : facteur `k` dans `ε_stat = |b| + k·MAD` si `--stat mad` (défaut: `2.44` ≈ LE90 ; ignoré si `percentile`)
+- `--demiwin` : demi-taille (pixels) de la fenêtre d'analyse (défaut: `50`)
+- `--min-valid` : effectif minimal pour calculer la stat [STANAG] ; seuil effectif = `max(min-valid, min-valid-pct% de la fenêtre)` (défaut: `167`)
+- `--min-valid-pct` : taux minimal (%) de pixels dans la fenêtre à la fois négatifs (MNS−MNT) et valides (`!=` NoData) (défaut: `10`) ; `0` = désactive l'option
+
+### Interpolation des NoData (trous)
+
+- `--interp` : `hybrid` (défaut) ou `idw`
+- `--hole-alpha` : pente de la rampe `α·d·Δ` (m d'incertitude par m de distance au bord) ; pénalise plus on s'enfonce dans le trou (défaut: `0.01`) ; `0` = sans rampe (P90(ε_bord) au centre + IDW au bord)
+- `--hole-lambda` : plafond `ε ≤ λ·P90(ε_bord)` si rampe active (défaut: `1.5` ; ignoré si `--hole-alpha=0`)
+
+### Lissage final
+
+- `--winavg` : taille (pixels) de la moyenne glissante finale (défaut: `50`)
+
+### Zones de non garantie (décrochage MNT)
+
+- `--decrochage` : détecter les zones où le MNT semble décrocher (MNS ≫ MNT) ; NoData dans la carte + shapefile à côté de `--out`
+- `--seuilZ` : écart minimal MNS−MNT (m) pour candidater une zone (défaut: `10`)
+- `--seuilV` : volume minimal d'une zone (nb pixels × écart moyen) pour la retenir (défaut: `100000`)
+- `--seuilSTD` : écart-type minimal (m) de MNS−MNT dans la zone pour la retenir (défaut: `3`)
+- `--morph-radius` : nettoyage morphologique (rayon en pixels) : enlève le bruit / petites taches (défaut: `5`)
 
 ---
 
@@ -143,13 +159,12 @@ sont mises en **NoData** dans la carte de précision et exportées en shapefile
 ### Entrées
 
 - **MNS** et **MNT** au format GeoTIFF
-- Ils peuvent avoir des **résolutions différentes** ; par défaut la carte de précision est calée sur la **grille du MNS**
-- Avec `--reso` : MNS et MNT sont rééchantillonnés sur une grille de travail à cette résolution (m), emprise/CRS du MNS
-- Si un pixel MNS ou MNT est NoData → pixel NoData dans la différence
+- Ils peuvent avoir des **résolutions différentes** ; par défaut la carte de précision a la résolution du MNS 
+- Avec `--reso` : MNS et MNT sont rééchantillonnés à la résolution de l'utilisateur 
 
 ### Sorties
 
-- `--out` : masque de qualité / carte de précision LE90 estimée locale (GeoTIFF ; résolution MNS, ou `--reso` si fourni)
+- `--out` : masque de qualité / carte de précision LE90 estimée localement 
 - Avec `--decrochage` : shapefile `*_zones_decrochage.shp` (zones non garanties) ;
   ces pixels restent **NoData** dans `--out` (non interpolés)
 - Fichier log : même chemin que `--out`, extension `.log`
@@ -171,10 +186,9 @@ sont mises en **NoData** dans la carte de précision et exportées en shapefile
 
 ## 🩹 Interpolation hybride (`--interp hybrid`) — recommandée
 
-Inspirée de `xingng -FB:2:...` (IDW bord + constante au centre).  
+Fonctionnalité inspirée de `xingng -FB:2:C:50,1:1:50:1 ...` (IDW bord + constante au centre).  
 Sans rampe (`--hole-alpha 0`) : IDW au bord, `P90(ε_bord)` au centre.  
-Avec rampe (défaut) : `ε = min(ε0 + α·d·Δ, λ·P90)`.
-
+Avec rampe (défaut) : `ε = min(ε0 + α·d·Δ, λ·P90)` λ définie par --hole-lambda (1.5 par défaut)
 ### Principe
 
 1. Identification des **trous connexes** (zones NoData)
@@ -185,7 +199,7 @@ Avec rampe (défaut) : `ε = min(ε0 + α·d·Δ, λ·P90)`.
    - combinaison selon la distance au bord : proche → IDW, centre → `V_calc` → `ε0`
    - si `--hole-alpha > 0` : `ε = min(ε0 + α·d·Δ, λ·P90)` (`--hole-lambda` plafonne)
 
-Cette méthode s'inspire de la méthode `xingng`: elle remplit bien les grands trous tout en restant raisonnablement dans son temps d'exécution.
+A l'usage, cette fonctionnalité remplit bien les grands trous tout en restant raisonnablement en temps d'exécution.
 
 ---
 
@@ -193,16 +207,18 @@ Cette méthode s'inspire de la méthode `xingng`: elle remplit bien les grands t
 
 ```text
 MAKE_QUALITY_GREAT_AGAIN/
-├── make_quality_great_again.py   # Point d'entrée CLI (wrapper)
+├── make_quality_great_again.py   # Point d'entrée CLI (wrapper → mqga.cli)
 ├── mqga/
+│   ├── __init__.py
 │   ├── cli.py                    # Arguments, logging, orchestration
-│   ├── io_raster.py              # I/O raster, diff MNS−MNT
-│   ├── decrochage.py             # Détection zones MNS ≫ MNT
-│   ├── quality_mask.py           # Percentile local / masque
-│   ├── tiling.py                 # Découpage et parallèle
+│   ├── io_raster.py              # I/O raster, diff MNS−MNT, --reso
+│   ├── decrochage.py             # Zones de non-garantie (MNS ≫ MNT)
+│   ├── quality_mask.py           # Stat locale (percentile / MAD) + min-valid
+│   ├── tiling.py                 # Découpage en tuiles + parallèle
 │   ├── mosaic.py                 # Assemblage des tuiles
-│   └── interpolate.py            # Bouchage NoData + lissage
+│   └── interpolate.py            # Bouchage NoData (hybrid/idw) + lissage
 ├── mqga_env.yml                  # Environnement conda
+├── LICENSE
 └── README.md
 ```
 
