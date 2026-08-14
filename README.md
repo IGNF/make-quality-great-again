@@ -118,7 +118,7 @@ Alignés sur `python3 make_quality_great_again.py --help`.
 - `--mad-k` : facteur `k` dans `ε_stat = |b| + k·MAD` si `--stat mad` (défaut: `2.44` ≈ LE90 ; ignoré si `percentile`)
 - `--demiwin` : demi-taille (pixels) de la fenêtre d'analyse (défaut: `50`)
 - `--min-valid` : effectif minimal pour calculer la stat [STANAG] ; seuil effectif = `max(min-valid, min-valid-pct% de la fenêtre)` (défaut: `167`)
-- `--min-valid-pct` : taux minimal (%) de pixels valides dans la fenêtre d'analyse; valide = à la fois négatifs dans la différence MNS−MNT `!=` NoData (défaut: `10`) ; `0` = désactive l'option
+- `--min-valid-pct` : taux minimal (%) de pixels valides dans la fenêtre d'analyse; valide = à la fois négatif dans la différence MNS−MNT && `!=` NoData (défaut: `10`) ; `0` = désactive l'option
 
 ### Interpolation des NoData (trous)
 
