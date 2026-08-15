@@ -143,7 +143,7 @@ Un fichier de log est écrit à côté de --out (même nom, extension .log).
 	g_stat.add_argument(
 		"--min-valid-pct", type=float, default=DEFAULT_MIN_VALID_PCT,
 		help=(
-			f"Taux minimal (en %%) de pixels présents dans la fenêtre d'analyse à la fois négatifs dans la différence (MNS-MNT) et valides (!= no data).\n"
+			f"Taux minimal (en %%) de pixels valides présents dans la fenêtre d'analyse / valides = à la fois négatifs dans la différence (MNS-MNT) && != NoData).\n"
 			f"[défaut: {DEFAULT_MIN_VALID_PCT}]\n"
 			f"0 = désactive l'option")
 	)
