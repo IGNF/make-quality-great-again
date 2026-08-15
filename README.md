@@ -190,7 +190,7 @@ Pour chaque trou NoData :
 3. Pour chaque pixel du trou, avec `d` = distance (px) au bord le plus proche et rayon fixe `50` :
    - `K = min(1, d / 50)`
    - si `d > 50` : on affecte `V_calc = P90(ε_bord)`
-   - si `d ≤ 50` mélange avec un V_IDW classique : `ε₀ = (1 - K) · V_IDW + K · V_calc`
+   - si `d ≤ 50` mélange avec un `V_IDW classique` : `ε₀ = (1 - K) · V_IDW + K · V_calc`
 
 | Distance au bord | Comportement de `ε₀` |
 |------------------|----------------------|
