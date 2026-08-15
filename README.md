@@ -181,7 +181,7 @@ Alignés sur `python3 make_quality_great_again.py --help`.
   `ε = min(ε₀ + α·d·Δ, λ·P90)`  
   avec `λ` = `--hole-lambda` (défaut `1.5`) et `P90` = P90 des ε de bord du trou
 
-### Principe (`ε₀`)
+### Principe:
 
 Pour chaque trou NoData :
 
