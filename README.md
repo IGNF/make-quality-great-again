@@ -172,7 +172,7 @@ Alignés sur `python3 make_quality_great_again.py --help`.
 
 ---
 
-## 🩹 Interpolation hybride (`--interp hybrid`) — recommandée
+## 💡 Interpolation hybride (`--interp hybrid`) — recommandée
 
 ### Sans / avec rampe
 
