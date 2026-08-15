@@ -122,9 +122,9 @@ Alignés sur `python3 make_quality_great_again.py --help`.
 
 ### Interpolation des NoData (trous)
 
-- `--interp` : `hybrid` (défaut) ou `idw`
-- `--hole-alpha` : pente de la rampe `α·d·Δ` (m d'incertitude par m de distance au bord) ; pénalise au fur et à mesure qu'on s'enfonce dans le trou de NoData (défaut: `0.01`) ; `0` = sans rampe (P90(ε_bord) au centre + IDW au bord)
-- `--hole-lambda` : plafond `ε ≤ λ·P90(ε_bord)` si rampe active (défaut: `1.5` ; ignoré si `--hole-alpha=0`)
+- `--interp` : Méthode d'interpolation: hybrid (défaut) ou idw ; ça calcule ε₀ = IDW près du bord + P90(ε_bord) au centre du trou ; puis rampe optionnelle (--hole-alpha)
+- `--hole-alpha` : Pente de la rampe α·d·Δ (m d'incertitude par m de distance au bord) ;  ça calcule cette formule: ε = min(ε₀ + α·d·Δ, λ·P90) avec ε₀ = mélange IDW/P90 (option --interp hybrid) ; pénalise plus on s'enfonce dans le trou ; 0 = sans rampe (ε = ε₀) [défaut: 0.01]
+- `--hole-lambda` : ε plafonne : ε ≤ λ·P90(ε_bord) si rampe active(ignoré si --hole-alpha=0) [défaut: 1.5]
 
 ### Lissage final
 
@@ -171,8 +171,7 @@ Alignés sur `python3 make_quality_great_again.py --help`.
 ---
 
 ## 🩹 Interpolation hybride (`--interp hybrid`) — recommandée
-
-Fonctionnalité inspirée de `xingng -FB:2:C:50,1:1:50:1 ...` (IDW bord + constante au centre).  
+  
 Sans rampe (`--hole-alpha 0`) : IDW au bord, `P90(ε_bord)` au centre.  
 Avec rampe (défaut) : `ε = min(ε0 + α·d·Δ, λ·P90)` λ définie par --hole-lambda (1.5 par défaut)
 ### Principe
@@ -180,12 +179,12 @@ Avec rampe (défaut) : `ε = min(ε0 + α·d·Δ, λ·P90)` λ définie par --ho
 1. Identification des **trous connexes** (zones NoData)
 2. Détection des **pixels de bord** (connexité 4)
 3. Pour chaque trou :
-   - ancre `V_calc = P90(ε_bord)` (percentile 90 des valeurs de bord)
+   - au centre `V_calc = P90(ε_bord)` (percentile 90 des valeurs de bord)
    - interpolation **IDW** locale sur les pixels de bord (rayon 50, poids 1)
    - combinaison selon la distance au bord : proche → IDW, centre → `V_calc` → `ε0`
-   - si `--hole-alpha > 0` : `ε = min(ε0 + α·d·Δ, λ·P90)` (`--hole-lambda` plafonne)
+   - si `--hole-alpha > 0` : `ε = min(ε0 + α·d·Δ, λ·P90)` (ça plafonne `--hole-lambda` [default: λ = 1.5])
 
-A l'usage, cette fonctionnalité remplit bien les grands trous tout en restant raisonnablement en temps d'exécution.
+A l'usage, cette fonctionnalité est inspirée de `xingng -FB:2:C:50,1:1:50:1 ...` et remplit bien les grands trous tout en restant raisonnablement en temps d'exécution.
 
 ---
 
