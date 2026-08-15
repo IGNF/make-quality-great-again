@@ -123,7 +123,7 @@ Alignés sur `python3 make_quality_great_again.py --help`.
 ### Interpolation des NoData (trous)
 
 - `--interp` : Méthode d'interpolation: `hybrid` (défaut) ou `idw` ; ça calcule `ε₀` = IDW près du bord + P90(ε_bord) au centre du trou ; puis rampe optionnelle (--hole-alpha)
-- `--hole-alpha` : Pente de la rampe `α·d·Δ` (m d'incertitude par m de distance au bord) ;  ça calcule cette formule: `ε = min(ε₀ + α·d·Δ, λ·P90)` avec `ε₀` = mélange IDW/P90 (option --interp hybrid) ; pénalise plus on s'enfonce dans le trou ; 0 = sans rampe (`ε = ε₀`) [défaut: 0.01]
+- `--hole-alpha` : ça pénalise plus on s'enfonce dans le trou ;  pente de la rampe `α·d·Δ` (m d'incertitude par m de distance au bord) ;  ça calcule cette formule: `ε = min(ε₀ + α·d·Δ, λ·P90)` avec `ε₀` = mélange IDW/P90 (option --interp hybrid) ; 0 = sans rampe (`ε = ε₀`) [défaut: 0.01]
 - `--hole-lambda` : plafond / borne supérieure : `ε ≤ λ·P90(ε_bord)` si rampe active (ignoré si `--hole-alpha`=0) [défaut: 1.5]
 
 ### Lissage final
