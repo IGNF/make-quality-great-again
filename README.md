@@ -8,8 +8,8 @@ Développé au Service de l'Imagerie Spatiale de l'IGN.
 
 MAKE QUALITY GREAT AGAIN (MQGA) calcule un **masque de qualité / carte de précision** à partir :
 
-- d'un **MNT** (DTM), typiquement produit par GEMAUT 
-- d'un **MNS** (DSM)
+- d'un **MNT**, typiquement produit par GEMAUT 
+- d'un **MNS** 
 
 Ce dépôt est le volet d'auto-qualification de [GEMAUT-pipeline](https://github.com/IGNF/GEMAUT-pipeline).
 
