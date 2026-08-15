@@ -123,9 +123,9 @@ Alignés sur `python3 make_quality_great_again.py --help`.
 ### Interpolation des NoData (trous)
 
 - `--interp` : `hybrid` (défaut, recommandé) ou `idw`
-  - **`hybrid`** : pour chaque pixel du trou, transition IDW (près du bord) → P90(ε_bord) (vers le centre) = `ε₀` ; puis rampe optionnelle (`--hole-alpha`)
+  - **`hybrid`** : pour chaque pixel du trou, `ε₀` = transition IDW (près du bord) → P90(ε_bord) (vers le centre) ; puis rampe optionnelle (`--hole-alpha`)
   - **`idw`** : IDW seul (pas de P90 / pas de rampe) ; `--hole-alpha` et `--hole-lambda` sont ignorés
-- `--hole-alpha` : pente de la rampe `α·d·Δ` (m d'incertitude par m de distance au bord), **uniquement en `hybrid`** ; formule `ε = min(ε₀ + α·d·Δ, λ·P90)` ; `0` = sans rampe (`ε = ε₀`) ; défaut `0.01`
+- `--hole-alpha` : ça pénalise avec une rampe plus on s'enfonce dans le trou ; pente de la rampe `α·d·Δ` (m d'incertitude par m de distance au bord) ; formule `ε = min(ε₀ + α·d·Δ, λ·P90)` ; `0` = sans rampe (`ε = ε₀`) ; défaut `0.01`
 - `--hole-lambda` : plafond de la rampe `ε ≤ λ·P90(ε_bord)` si `--hole-alpha > 0` (ignoré sinon) ; défaut `1.5`
 
 ### Lissage final
@@ -174,8 +174,6 @@ Alignés sur `python3 make_quality_great_again.py --help`.
 
 ## 🩹 Interpolation hybride (`--interp hybrid`) — recommandée
 
-Inspirée de `xingng -FB:2:C:50,1:1:50:1 ...` (IDW bord + constante au centre).
-
 ### Sans / avec rampe
 
 - **Sans rampe** (`--hole-alpha 0`) : on garde `ε₀` uniquement
@@ -187,13 +185,12 @@ Inspirée de `xingng -FB:2:C:50,1:1:50:1 ...` (IDW bord + constante au centre).
 
 Pour chaque trou NoData :
 
-1. Identification du trou (composante connexe) et des **pixels de bord** valides (connexité 4)
-2. Ancre centre : `V_calc = P90(ε_bord)`
-3. Pour **chaque** pixel du trou, avec `d` = distance (px) au bord le plus proche et rayon fixe `50` :
+1. Identification du trou (composante connexe) et des pixels de bord valides 
+2. Au centre : `V_calc = P90(ε_bord)`
+3. Pour chaque pixel du trou, avec `d` = distance (px) au bord le plus proche et rayon fixe `50` :
    - `K = min(1, d / 50)`
-   - si `d ≤ 50` : calcul d’un **IDW** local sur les ε de bord → `V_IDW`
-   - si `d > 50` : pas d’IDW ; on prend `V_IDW := V_calc`
-   - mélange : `ε₀ = (1 - K) · V_IDW + K · V_calc`
+   - si `d > 50` : on affecte `V_calc = P90(ε_bord)`
+   - si `d ≤ 50` mélange avec un V_IDW classique : `ε₀ = (1 - K) · V_IDW + K · V_calc`
 
 | Distance au bord | Comportement de `ε₀` |
 |------------------|----------------------|
@@ -203,7 +200,9 @@ Pour chaque trou NoData :
 
 Puis, si `--hole-alpha > 0`, pénalité distance + plafond `λ·P90` (voir ci-dessus).
 
-Les zones `--decrochage` restent hors fill (NoData conservé).
+Inspirée de `xingng -FB:2:C:50,1:1:50:1 ...` (IDW bord + constante au centre). A l'usage, ça remplit bien les trous, tout en restant raisonnable en termes de temps d'exécution.
+
+Ne touche pas les zones `--decrochage` qui restent en NoData.
 
 ---
 
