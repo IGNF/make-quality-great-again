@@ -153,21 +153,26 @@ Un fichier de log est écrit à côté de --out (même nom, extension .log).
 	g_interp.add_argument(
 		"--interp", "-interp", type=str, default="hybrid",
 		choices=["hybrid", "idw"],
-		help="Méthode d'interpolation: hybrid (défaut) ou idw",
-	)
+		help=(
+			f"Méthode d'interpolation: hybrid (défaut) ou idw\n"
+			f"ça calcule ε₀ = IDW près du bord + P90(ε_bord) au centre du trou\n"
+			f"puis rampe optionnelle (--hole-alpha)"
+		)	)	
 	g_interp.add_argument(
 		"--hole-alpha", type=float, default=DEFAULT_HOLE_ALPHA,
 		help=(
 			f"Pente de la rampe α·d·Δ (m d'incertitude par m de distance au bord).\n"
-			f"Pénalise la mesure de précision au fur et à mesure qu'on s'enfonce dans le trou.\n"
-			f"[défaut: {DEFAULT_HOLE_ALPHA}]\n"
-			f"0 = désactive l'option =  sans rampe (P90(ε_bord) au centre du trou + IDW au bord)")
-		),
+			f"ça calcule cette formule: ε = min(ε₀ + α·d·Δ, λ·P90) avec ε₀ = mélange IDW/P90 (option --interp hybrid).\n"
+			f"Pénalise plus on s'enfonce dans le trou.\n"
+			f"0 = sans rampe (ε = ε₀)\n"
+			f"[défaut: 0.01]")
+		)
 	g_interp.add_argument(
 		"--hole-lambda", type=float, default=DEFAULT_HOLE_LAMBDA,
 		help=(
-			f"Plafond ε ≤ λ·P90(ε_bord) lorsque la rampe est active"
-			f"(ignoré si --hole-alpha=0) [défaut: {DEFAULT_HOLE_LAMBDA}]"
+			f"ε plafonne : ε ≤ λ·P90(ε_bord) si rampe active"
+			f"(ignoré si --hole-alpha=0)\n"
+			f"[défaut: {DEFAULT_HOLE_LAMBDA}]"
 		),
 	)
 
